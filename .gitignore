@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.db-wal
+*.db-shm
+*.db
+.vscode/
+.idea/
+procure_iq.db-wal
+procure_iq.db-shm
+procure_iq.db
