@@ -154,6 +154,102 @@ Server runs on `http://localhost:8888`
 
 ---
 
+## 📚 Key Endpoints
+
+### Public
+- `GET /` - API landing page
+- `GET /docs` - Swagger UI documentation
+- `GET /metrics` - Prometheus metrics
+
+### Protected (Requires `X-API-Key` header)
+- `GET /api/invoices` - List all invoices
+- `POST /api/invoices/simulate` - Simulate invoice processing
+- `GET /api/ai-health` - AI services health check
+- `GET /api/system/status` - System configuration
+- `GET /api/analytics/dashboard` - Analytics data
+
+### Approval Flow (Token-based)
+- `GET /api/approve/{token}` - Approve invoice/order
+- `GET /api/reject/{token}` - Reject invoice/order
+
+---
+
+## 🏗️ Project Structure
+
+```
+procure_iq_backend/
+├── app/
+│   ├── agent/              # AI client, memory, inventory manager
+│   ├── api/                # FastAPI routes
+│   │   ├── invoices.py
+│   │   ├── simulation.py
+│   │   ├── approval_routes.py
+│   │   └── analytics_routes.py
+│   ├── services/           # Email, SMS, ERP integrations
+│   ├── validators/         # AI safety & validation
+│   ├── middleware/         # Monitoring, security
+│   ├── models.py           # SQLAlchemy models
+│   ├── schemas.py          # Pydantic schemas
+│   ├── database.py         # DB connection
+│   └── main.py             # FastAPI app
+├── docs/                   # Documentation
+├── config.py               # Environment configuration
+├── gmail_checker.py        # Automated email processor
+├── gmail_auth_setup.py     # OAuth setup script
+├── run.py                  # Server launcher
+├── requirements.txt        # Dependencies
+├── Dockerfile              # Docker image
+└── docker-compose.yml      # Docker services
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio
+
+# Run tests
+pytest procure_iq_backend/tests/ -v
+```
+
+---
+
+## 🐳 Docker Deployment
+
+```bash
+# Build image
+docker build -t procureiq:latest procure_iq_backend/
+
+# Run with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+---
+
+## 📊 Monitoring
+
+### Health Checks
+```bash
+# System status
+curl -H "X-API-Key: your_key" http://localhost:8888/api/system/status
+
+# AI health
+curl -H "X-API-Key: your_key" http://localhost:8888/api/ai-health
+
+# Metrics
+curl http://localhost:8888/metrics
+```
+
+### Logging
+- Application logs: `procure_iq_backend/app.log`
+- Gmail checker logs: `procure_iq_backend/gmail_checker.log`
+- Agent loop: stdout/stderr
+
 ## 🤝 Team Collaboration
 
 This project follows hackathon best practices:
