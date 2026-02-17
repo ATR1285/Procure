@@ -1,0 +1,19 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./procure_iq.db:/app/procure_iq.db
+      - ./.env:/app/.env
+    restart: always
+    environment:
+      - DATABASE_URL=sqlite:///./procure_iq.db
+
+  # Optional: Prometheus for monitoring
+  # prometheus:
+  #   image: prom/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
