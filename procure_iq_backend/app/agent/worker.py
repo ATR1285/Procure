@@ -1,79 +1,188 @@
 import time
+import datetime
+import asyncio
 import logging
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
-from .. import crud, models
-from .matcher import process_invoice_match
+from .. import models
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("AutonomousAgent")
+logger = logging.getLogger(__name__)
 
 def start_agent_loop():
     """
-    Continuous background loop that polls the Event table.
-    This is the core 'Autonomous Agent' requirement.
+    Autonomous agent loop with exponential backoff and stock monitoring.
+    
+    Processes:
+    1. Pending events (invoice matching, etc.)
+    2. Stock alerts (every 60 seconds)
+    
+    Features:
+    - Exponential backoff (2s to 30s) when idle
+    - Graceful shutdown on KeyboardInterrupt
+    - Comprehensive error handling
+    - Detailed logging with timestamps
     """
-    logger.info("Autonomous Agent Loop Started")
+    db = SessionLocal()
+    wait_time = 2  # Initial wait time in seconds
+    last_stock_check = 0  # Timestamp of last stock check
+    STOCK_CHECK_INTERVAL = 60  # Check stock every 60 seconds
+    
+    print(f"[{datetime.datetime.now()}] Agent loop started")
     
     while True:
+        # Create a new session for each loop iteration to ensure it's fresh
         db = SessionLocal()
         try:
-            # Poll for pending events
-            # 1. Check Inventory (Every loop)
-            from .inventory_manager import check_inventory_levels
-            check_inventory_levels(db)
-            
-            # 2. Poll Real Emails (New)
-            from ..services.email_service import EmailIngestionService
-            email_svc = EmailIngestionService()
-            new_emails = email_svc.fetch_latest_invoices()
-            for em in new_emails:
-                logger.info(f"📧 New Invoice Email Detected: {em['subject']}")
-                # Trigger a real event in the DB
-                new_event = models.Event(
-                    event_type="INVOICE_RECEIVED",
-                    payload={
-                        "invoiceNumber": f"MAIL-{em['date']}", # Temporary ID
-                        "vendorName": em['from'], # Raw from email
-                        "invoiceAmount": 0.0, # Will be extracted by AI in next step
-                        "raw_text": em['body'] # Full text for AI analysis
-                    }
-                )
-                db.add(new_event)
+            # 1. Update worker heartbeat
+            try:
+                status = db.query(models.SystemStatus).filter(models.SystemStatus.service_name == "worker").first()
+                if not status:
+                    status = models.SystemStatus(service_name="worker", status="healthy")
+                    db.add(status)
+                status.last_heartbeat = datetime.datetime.now() # Use datetime.datetime.now()
+                status.status = "healthy"
                 db.commit()
+            except Exception as e:
+                logger.error(f"Failed to update worker heartbeat: {e}")
+                db.rollback()
 
-            # 3. Process Pending Events (Invoices, Approvals, etc.)
-            # Fetch all pending events to process them in a loop
-            pending_events = crud.get_pending_events(db)
+            # 2. Process events
+            logger.info("Worker: Checking for new events...")
+
+            current_time = time.time()
             
-            for event in pending_events:
-                logger.info(f"Processing event: {event.event_type} (ID: {event.id})")
+            # 1. Process pending events (invoice matching, etc.)
+            events = db.query(models.Event).filter(models.Event.status == 'pending').all()
+            
+            if events:
+                # Reset wait time if events were found
+                wait_time = 2
                 
-                # Update status to processing
-                event.status = "PROCESSING"
-                db.commit()
+                for event in events:
+                    print(f"[{datetime.datetime.now()}] Processing event ID {event.id} of type {event.event_type}")
+                    
+                    try:
+                        # Process event based on type
+                        if event.event_type == "INVOICE_RECEIVED":
+                            from ..agent.matcher import process_invoice_match
+                            process_invoice_match(db, event.payload)
+                        
+                        # Mark as completed
+                        event.status = 'completed'
+                        event.processed_at = datetime.datetime.now()
+                        db.commit()
+                        
+                        print(f"[{datetime.datetime.now()}] Event {event.id} completed successfully")
+                        
+                    except Exception as e:
+                        print(f"[{datetime.datetime.now()}] ERROR processing event {event.id}: {e}")
+                        event.status = 'failed'
+                        db.commit()
+            
+            # 2. Check stock alerts (every 60 seconds)
+            if current_time - last_stock_check >= STOCK_CHECK_INTERVAL:
+                print(f"[{datetime.datetime.now()}] Running stock alert check...")
                 
                 try:
-                    if event.event_type == "INVOICE_RECEIVED":
-                        # Execute matching logic
-                        process_invoice_match(db, event.payload)
+                    from ..services.alert_service import process_stock_alerts
                     
-                    elif event.event_type == "VENDOR_LEARNED":
-                        # Handle ontology update
-                        logger.info("Updating vendor ontology based on human approval")
-                        # (Logic to update VendorAlias table)
+                    # Run async function in sync context
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(process_stock_alerts(db))
+                    loop.close()
                     
-                    event.status = "COMPLETED"
+                    if result.get('low_stock_items', 0) > 0:
+                        print(f"[{datetime.datetime.now()}] Stock alerts: {result['low_stock_items']} items, "
+                              f"email={result['email_sent']}, sms={result['sms_sent']}")
+                    
+                    last_stock_check = current_time
+                    
                 except Exception as e:
-                    logger.error(f"Error processing event {event.id}: {str(e)}")
-                    event.status = "FAILED"
-                
-                db.commit()
-                
-        except Exception as e:
-            logger.error(f"Agent loop error: {str(e)}")
-        finally:
-            db.close()
+                    print(f"[{datetime.datetime.now()}] ERROR in stock alert check: {e}")
+                    last_stock_check = current_time  # Don't retry immediately
             
-        # Poll interval
-        time.sleep(5)
+            # 3. Check for invoice emails (every 5 minutes)
+            EMAIL_CHECK_INTERVAL = 300  # 5 minutes
+            if 'last_email_check' not in locals():
+                last_email_check = 0
+            
+            if current_time - last_email_check >= EMAIL_CHECK_INTERVAL:
+                print(f"[{datetime.datetime.now()}] Checking for invoice emails...")
+                
+                try:
+                    from ..services.email_service import EmailIngestionService
+                    
+                    # Initialize email service
+                    email_service = EmailIngestionService()
+                    
+                    # Fetch latest invoices
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    invoices = loop.run_until_complete(email_service.fetch_latest_invoices())
+                    loop.close()
+                    
+                    if invoices:
+                        print(f"[{datetime.datetime.now()}] Found {len(invoices)} invoice emails")
+                        
+                        # Create events for each invoice
+                        for invoice in invoices:
+                            # Create INVOICE_RECEIVED event
+                            event = models.Event(
+                                event_type="INVOICE_RECEIVED",
+                                payload={
+                                    "invoiceNumber": invoice['invoice_number'],
+                                    "vendorName": invoice['vendor_name'],
+                                    "invoiceAmount": invoice['amount'],
+                                    "raw_text": invoice['body'],
+                                    "source": "email",
+                                    "email_subject": invoice['subject'],
+                                    "email_from": invoice['from'],
+                                    "email_date": invoice['date'],
+                                    "extraction_confidence": invoice['confidence']
+                                },
+                                status="pending"
+                            )
+                            db.add(event)
+                        
+                        db.commit()
+                        print(f"[{datetime.datetime.now()}] Created {len(invoices)} invoice events")
+                    
+                    last_email_check = current_time
+                    
+                except Exception as e:
+                    print(f"[{datetime.datetime.now()}] ERROR in email check: {e}")
+                    last_email_check = current_time  # Don't retry immediately
+            
+            # 4. Exponential backoff when idle
+            if not events:
+                print(f"[{datetime.datetime.now()}] No events found. Waiting for {wait_time} seconds...")
+                time.sleep(wait_time)
+                wait_time = min(wait_time * 2, 30)  # Double wait time, max 30 seconds
+            else:
+                time.sleep(2)  # Small delay between event batches
+
+        except KeyboardInterrupt:
+            print(f"\n[{datetime.datetime.now()}] Agent loop stopped cleanly.")
+            break
+            
+        except Exception as e:
+            print(f"[{datetime.datetime.now()}] ERROR in agent loop: {e}")
+            
+            # Log error to database
+            try:
+                error_log = models.Event(
+                    event_type="AGENT_ERROR",
+                    payload={"error": str(e), "timestamp": datetime.datetime.now().isoformat()},
+                    status="failed"
+                )
+                db.add(error_log)
+                db.commit()
+            except:
+                pass  # Don't crash if logging fails
+            
+            time.sleep(wait_time)  # Wait before retrying after error
+            wait_time = min(wait_time * 2, 30)  # Continue exponential backoff
+    
+    db.close()
+    print(f"[{datetime.datetime.now()}] Agent loop terminated")

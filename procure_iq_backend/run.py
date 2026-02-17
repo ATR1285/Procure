@@ -1,8 +1,22 @@
 import uvicorn
-from dotenv import load_dotenv
+import sys
 import os
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from config import settings
+
 if __name__ == "__main__":
-    load_dotenv()
-    # Run FastAPI app on port 5000 to match the current frontend expectations
-    uvicorn.run("app.main:app", host="0.0.0.0", port=5000, reload=True)
+    # Print startup configuration summary
+    settings.print_startup_summary()
+    
+    # Get port from config
+    port = settings.PORT
+    
+    print(f"\n>> Server starting at http://localhost:{port}")
+    print(f">> API Documentation: http://localhost:{port}/docs")
+    print(f">> API Authentication: {'Enabled' if settings.API_KEY else 'Auto-generating key...'}\n")
+    
+    # Run FastAPI app with configurable port
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

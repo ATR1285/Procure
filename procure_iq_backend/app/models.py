@@ -43,6 +43,55 @@ class Invoice(Base):
     is_suspicious = Column(Boolean, default=False)
     audit_trail = Column(JSON, default=[]) # List of events related to this invoice
 
+class ApprovalToken(Base):
+    """
+    Secure tokens for owner approval via email/SMS links.
+    
+    Tokens expire after configured hours (default: 48) and can only
+    be used once. Provides audit trail for all approval decisions.
+    """
+    __tablename__ = "approval_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True)  # Secure random token
+    invoice_id = Column(Integer, ForeignKey("invoices.id"))
+    action_type = Column(String)  # 'approve' or 'reject'
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime)  # Token expiry time
+    used_at = Column(DateTime, nullable=True)  # When token was used
+    is_used = Column(Boolean, default=False)
+    ip_address = Column(String, nullable=True)  # IP of approver
+    user_agent = Column(String, nullable=True)  # Browser info
+
+
+class ConversationMessage(Base):
+    """
+    Conversation history for memory system.
+    
+    Stores all conversation messages for multi-turn reasoning and context retention.
+    """
+    __tablename__ = "conversation_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True, nullable=False)  # Conversation session
+    role = Column(String, nullable=False)  # 'user', 'assistant', 'system'
+    content = Column(Text, nullable=False)  # Message content
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    message_metadata = Column(JSON, default={})  # Tool calls, costs, model used, etc.
+
+
+class SystemStatus(Base):
+    """
+    Tracks health of background services and worker heartbeats.
+    """
+    __tablename__ = "system_status"
+    id = Column(Integer, primary_key=True, index=True)
+    service_name = Column(String, unique=True, index=True) # e.g., 'worker', 'api'
+    status = Column(String) # 'healthy', 'degraded', 'offline'
+    last_heartbeat = Column(DateTime, default=datetime.datetime.utcnow)
+    version = Column(String, nullable=True)
+    uptime_seconds = Column(Float, default=0.0)
+
+
 class Event(Base):
     __tablename__ = "events"
     id = Column(Integer, primary_key=True, index=True)
@@ -52,14 +101,41 @@ class Event(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
 
-class Inventory(Base):
+class InventoryItem(Base):
+    """
+    Inventory items with stock tracking and reorder management.
+    
+    Renamed from 'Inventory' for clarity and added reorder fields
+    for automated stock alert system.
+    """
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True, index=True)
-    item_name = Column(String, index=True)
+    name = Column(String, index=True)  # Renamed from item_name for consistency
+    brand = Column(String, nullable=True) # Added for v2.0 premium display
     quantity = Column(Integer, default=0)
-    limit_threshold = Column(Integer, default=50)
+    reorder_threshold = Column(Integer, default=10)  # Renamed from limit_threshold
+    reorder_quantity = Column(Integer, default=50)  # How many to reorder
     supplier_id = Column(Integer, ForeignKey("vendors.id"))
     last_checked = Column(DateTime, default=datetime.datetime.utcnow)
+    unit_price = Column(Float, default=0.0)  # For cost tracking
+    sku = Column(String, nullable=True)  # Stock Keeping Unit
+
+class AlertLog(Base):
+    """
+    Alert history for tracking sent notifications.
+    
+    Prevents duplicate alerts and provides audit trail for
+    all email and SMS notifications sent by the system.
+    """
+    __tablename__ = "alert_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    alert_type = Column(String, index=True)  # low_stock, critical_stock, etc.
+    message = Column(Text)
+    email_sent = Column(Boolean, default=False)
+    sms_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    alert_metadata = Column(JSON, default={})  # Additional alert data (renamed from metadata)
 
 class SMSLog(Base):
     __tablename__ = "sms_logs"

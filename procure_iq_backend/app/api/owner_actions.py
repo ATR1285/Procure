@@ -16,7 +16,7 @@ def get_db():
 
 @router.get("/api/inventory")
 def get_inventory(db: Session = Depends(get_db)):
-    return db.query(models.Inventory).all()
+    return db.query(models.InventoryItem).all()
 
 @router.post("/api/owner/approve-refill/{event_id}")
 def approve_refill(event_id: int, db: Session = Depends(get_db)):
@@ -29,7 +29,7 @@ def approve_refill(event_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Event not found")
     
     item_id = event.payload.get("item_id")
-    item = db.query(models.Inventory).filter(models.Inventory.id == item_id).first()
+    item = db.query(models.InventoryItem).filter(models.InventoryItem.id == item_id).first()
     
     if item:
         # Simulate replenishing or placing order
@@ -37,7 +37,7 @@ def approve_refill(event_id: int, db: Session = Depends(get_db)):
         vendor_email = vendor.email if vendor else "supplier@example.com"
         
         # Trigger Mail to Supplier
-        send_email_to_supplier(vendor_email, item.item_name, 100) # Default refill 100
+        send_email_to_supplier(vendor_email, item.name, item.reorder_quantity)
         
         # Update Event
         event.status = "COMPLETED"
@@ -46,9 +46,11 @@ def approve_refill(event_id: int, db: Session = Depends(get_db)):
         # Update Inventory (Simulate refill incoming)
         # In a real app, this would wait for a packing slip event
         item.last_checked = datetime.datetime.utcnow()
+        # For demonstration: replenish the stock
+        item.quantity += item.reorder_quantity
         
         db.commit()
-        return {"status": "success", "message": f"Order sent to {vendor_email}"}
+        return {"status": "success", "message": f"Order sent to {vendor_email} and inventory updated."}
     
     return {"status": "error", "message": "Item not found"}
 

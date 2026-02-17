@@ -1,139 +1,171 @@
-# ProcureIQ - AI-Powered Invoice Matching System
+# 🚀 ProcureIQ - AI-Powered Autonomous Procurement System
 
-Production-grade invoice processing system with Ollama AI, Odoo ERP integration, and three-way matching.
+> Intelligent invoice processing with autonomous vendor matching and real-time inventory management.
 
-## Features
+[![Deployment Status](https://img.shields.io/badge/deployment-live-success)](https://procureiq.onrender.com/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-- **Local AI**: Ollama integration for vendor name matching and reasoning
-- **ERP Integration**: Real-time Odoo Community Edition connection via JSON-RPC
-- **Three-Way Matching**: Invoice + Purchase Order + Goods Receipt verification
-- **Fuzzy Matching**: Fuse.js fallback when AI is unavailable
-- **Alias Learning**: Auto-learns vendor name variations on approval
-- **SQLite Database**: Zero-setup local storage
-- **Live Accuracy**: Real-time accuracy rate calculation from decisions
+## 🌐 Live Deployment
 
-## Tech Stack
+🔗 **Application:** [https://procureiq.onrender.com/](https://procureiq.onrender.com/)  
+📚 **API Docs:** [https://procureiq.onrender.com/docs](https://procureiq.onrender.com/docs)  
+📊 **System Status:** [https://procureiq.onrender.com/api/system/status](https://procureiq.onrender.com/api/system/status)
 
-- **Frontend**: React + TypeScript + Wouter
-- **Backend**: Express + TypeScript + Drizzle ORM
-- **Database**: SQLite (better-sqlite3)
-- **LLM**: Ollama (llama3.1:8b) via OpenAI SDK
-- **ERP**: Odoo Community 17 via JSON-RPC
-- **Fuzzy Match**: Fuse.js
+---
 
-## Quick Start
+## ❓ Problem Statement
+
+Small and medium-sized businesses (SMBs) struggle with manual procurement processes:
+*   **Invoice Chaos:** Hours spent manually typing invoice data into Excel or ERPs.
+*   **Stockouts:** "Forget to order" moments leading to lost revenue.
+*   **Vendor Drift:** Losing track of negotiated rates and vendor performance.
+*   **Security Risks:** Email-based approval processes are vulnerable to phishing and fraud.
+
+**ProcureIQ** solves this with an **autonomous agent** that lives in your inbox, extracts data with AI, manages inventory, and secures high-value decisions with tokenized approvals.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    subgraph "External World"
+        Gmail[Gmail Inbox]
+        Vendor[Vendor Email]
+        User[Admin User]
+    end
+
+    subgraph "ProcureIQ Brain"
+        Agent[Autonomous Agent Loop]
+        Checker[Gmail Checker]
+        API[FastAPI Server]
+        DB[(SQLite Database)]
+        
+        subgraph "AI Core"
+            Gemini[Gemini 1.5 Pro]
+            GPT[GPT-4o Fallback]
+            Validator[Safety Validator]
+        end
+    end
+
+    Vendor -->|Send Invoice| Gmail
+    Gmail -->|Poll| Checker
+    Checker -->|Raw Text| Validator
+    Validator -->|Clean Prompt| Gemini
+    Gemini -->|JSON Data| API
+    
+    Agent -->|Monitor Stock| DB
+    Agent -->|Auto-Reorder| Vendor
+    
+    User -->|View Dashboard| API
+    API -->|Store/Retrieve| DB
+```
+
+---
+
+## 🤖 Responsible & Secure AI
+
+We prioritize safety and reliability in our AI implementation:
+
+1.  **Prompt Injection Defense**: Every input passes through a dedicated validator that checks for 20+ known injection patterns before reaching the LLM.
+2.  **Confidence Scoring**: 
+    *   **≥ 95%**: Auto-approved.
+    *   **75% - 94%**: Flagged for human review.
+    *   **< 75%**: Rejected/Escalated.
+3.  **Hallucination Prevention**: We use strict schemas (Pydantic) and multi-model verification (Gemini checked against Rule-Based logic) to ensure data accuracy.
+4.  **Privacy First**: Minimal PII retention. AI is used as a *processor*, not a storage engine.
+
+---
+
+## ✨ Features
+
+### 🎯 Core Functionality
+- ✅ **Automated Email Monitoring** - Gmail OAuth integration with spam detection
+- ✅ **AI Invoice Extraction** - Multi-model support (Gemini, OpenAI, Ollama)
+- ✅ **Autonomous Vendor Matching** - Intelligent matching with confidence scoring
+- ✅ **Smart Inventory Management** - Real-time stock alerts and auto-reordering
+- ✅ **Approval Workflows** - Email/SMS notifications with secure token-based approval
+- ✅ **Background Agent** - Autonomous processing with adaptive polling
+
+### 🔒 Security & Safety
+- ✅ API Key Authentication on all endpoints
+- ✅ Prompt Injection Detection (20+ attack patterns)
+- ✅ AI Output Validation with confidence thresholds
+- ✅ Environment variable validation on startup
+- ✅ Comprehensive error handling framework
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Framework:** FastAPI 0.115+
+- **Language:** Python 3.13
+- **Database:** SQLite (SQLAlchemy ORM)
+- **API Docs:** Swagger/OpenAPI auto-generated
+
+### AI & Integrations
+- **Primary AI:** Google Gemini 1.5 Pro/Flash
+- **Fallback AI:** OpenAI GPT-4o
+- **Optional:** Ollama (local models)
+- **Email:** Gmail API with OAuth2
+- **Notifications:** Twilio SMS
+- **Monitoring:** Prometheus + Sentry
+
+### DevOps
+- **Containerization:** Docker + docker-compose
+- **CI/CD:** GitHub Actions
+- **Deployment:** Render/Railway ready
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
-
-- Node.js 20+
-- Ollama installed and running (`ollama serve`)
-- Odoo Community Edition (optional - runs in fallback mode without it)
+- Python 3.13+
+- Google Cloud Console project (for Gemini & Gmail API)
+- Optional: OpenAI API key, Twilio account
 
 ### Installation
 
 ```bash
+# Clone repository
+git clone https://github.com/ATR1285/Procure.git
+cd Procure
+
 # Install dependencies
-npm install
+cd procure_iq_backend
+pip install -r requirements.txt
 
-# Copy environment template
+# Configure environment
 cp .env.example .env
-
-# Start Odoo (optional - runs in fallback mode without it)
-docker-compose up -d
-
-# Pull Ollama model
-ollama pull llama3.1:8b
-
-# Initialize database
-npx drizzle-kit push
-
-# Start development server
-npm run dev
+# Edit .env with your credentials
 ```
 
-### Environment Variables
+### Run the Server
 
-Required in `.env`:
+```bash
+# Development
+python procure_iq_backend/run.py
 ```
-ODOO_URL=http://localhost:8069
-ODOO_DB=odoo
-ODOO_USER=admin
-ODOO_PASSWORD=admin
-OLLAMA_URL=http://localhost:11434/v1
-OLLAMA_MODEL=llama3.1:8b
-```
+Server runs on `http://localhost:8888`
 
-## Database Schema
+---
 
-### Vendors
-- Canonical names + JSON array of aliases
-- Contact email
-- Active status
+## 🤝 Team Collaboration
 
-### Invoices
-- Invoice number, amount, date
-- Linked vendor ID
-- Status (pending/approved/rejected/escalated)
-- Confidence score
-- Extracted data (JSON)
+This project follows hackathon best practices:
+- 4 team member branches (`Akhil`, `Niranjan-SP`, `Visrutha`, `branch-Richard`)
+- Conventional commits (`feat:`, `fix:`, `docs:`, `test:`)
+- Comprehensive documentation
+- Production-ready code
 
-### Matches
-- Invoice → Odoo PO mapping
-- Match method (ollama/fuse-fuzzy/manual)
-- Decision tracking
+See [COLLABORATION.md](procure_iq_backend/docs/COLLABORATION.md) for guidelines.
 
-### Goods Receipts
-- Odoo PO ID
-- Receipt details (date, quantity, amount)
-- Received by
+---
 
-## Architecture
+## 📄 License
 
-```
-client/          # React frontend
-server/          # Express API
-  db.ts          # SQLite connection
-  storage.ts     # Data access layer
-  odoo-client.ts # Odoo JSON-RPC client
-  ollama-service.ts # AI analysis
-  routes.ts      # API endpoints
-shared/          # Shared TypeScript types
-  schema.ts      # Drizzle schema
-```
-
-## Confidence Scoring
-
-Weighted three-way match:
-- **50%** Vendor match confidence (from Ollama)
-- **35%** PO amount match (±5% tolerance)
-- **15%** Goods receipt exists
-
-**≥85%** → Auto-approved  
-**60-84%** → Pending review  
-**<60%** → Escalated
-
-## Fallback Strategy
-
-1. **Ollama unavailable** → Fuse.js fuzzy matching
-2. **Odoo offline** → Local vendor database
-3. **Both offline** → Manual escalation
-
-## Demo Flow
-
-1. Trigger invoice: "Acme Supplies Ltd" → 94% confidence → auto-approved
-2. Trigger invoice: "GLOBALTECH PVT" → 71% → pending
-3. Approve pending → alias learned
-4. Re-trigger "GLOBALTECH PVT" → 95% → auto-approved (alias matched)
-
-## Production Checklist
-
-- [ ] Set strong Odoo credentials
-- [ ] Enable HTTPS for Odoo
-- [ ] Configure Ollama API authentication
-- [ ] Set up automated backups (SQLite file)
-- [ ] Monitor accuracy rate trends
-- [ ] Review escalated invoices daily
-
-## License
-
-MIT
+MIT License - See LICENSE file for details

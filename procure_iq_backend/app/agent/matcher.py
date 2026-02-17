@@ -7,17 +7,37 @@ logger = logging.getLogger("DecisionEngine")
 
 def calculate_confidence(raw_name: str, candidate_name: str) -> int:
     """
-    Simple but judge-proof confidence logic.
-    In real usage, this would be part of the Ollama-assisted scoring.
+    Calculate vendor name match confidence score.
+    
+    Scoring Logic (Fix 7 - Transparency):
+    - Exact match: 100 points
+    - Substring match: 85 points
+    - Fuzzy match: 50 points (base)
+    
+    This function provides transparent, deterministic scoring that can be
+    audited and explained to stakeholders.
+    
+    Args:
+        raw_name: Raw vendor name from invoice
+        candidate_name: Known vendor name from database
+    
+    Returns:
+        Confidence score (0-100)
     """
-    # Normalize
+    # Normalize for comparison
     n1 = raw_name.lower().strip()
     n2 = candidate_name.lower().strip()
     
-    if n1 == n2: return 100
-    if n1 in n2 or n2 in n1: return 85
+    if n1 == n2:
+        logger.debug(f"Exact match: '{raw_name}' == '{candidate_name}' -> 100")
+        return 100
     
-    return 50 # Base confidence for fuzzy match
+    if n1 in n2 or n2 in n1:
+        logger.debug(f"Substring match: '{raw_name}' <-> '{candidate_name}' -> 85")
+        return 85
+    
+    logger.debug(f"Fuzzy match: '{raw_name}' vs '{candidate_name}' -> 50")
+    return 50  # Base confidence for fuzzy match
 
 def process_invoice_match(db: Session, payload: dict):
     """
@@ -85,6 +105,10 @@ def process_invoice_match(db: Session, payload: dict):
             match_score = ai_result.get("confidence", 0)
             reasoning = ai_result.get("reasoning", "AI Analysis failed to provide reasoning.")
             target_vendor_id = ai_result.get("best_match_id")
+            
+            # Log AI usage for transparency (Fix 7)
+            logger.info(f"AI Analysis: vendor_id={target_vendor_id}, confidence={match_score}, reasoning={reasoning}")
+            
         except Exception as e:
             logger.error(f"AI Matcher Error: {str(e)}")
             match_score = 40
@@ -110,4 +134,48 @@ def process_invoice_match(db: Session, payload: dict):
     flag_modified(invoice, "audit_trail")
     
     db.commit()
+    
+    # 4. Check if approval required (amount exceeds threshold)
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from config import settings
+    
+    if invoice.total_amount > settings.INVOICE_APPROVAL_THRESHOLD:
+        logger.info(f"Invoice {invoice_number} exceeds threshold (${invoice.total_amount} > ${settings.INVOICE_APPROVAL_THRESHOLD})")
+        
+        # Trigger approval request
+        try:
+            import asyncio
+            from ..api.approval_routes import request_approval, ApprovalRequest
+            
+            # Create approval request
+            approval_req = ApprovalRequest(
+                invoice_id=invoice.id,
+                threshold_exceeded=True,
+                reason=f"Invoice amount ${invoice.total_amount} exceeds automatic approval threshold of ${settings.INVOICE_APPROVAL_THRESHOLD}"
+            )
+            
+            # Run async approval request in sync context
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(request_approval(approval_req, db))
+            loop.close()
+            
+            logger.info(f"Approval request sent: email={result.email_sent}, sms={result.sms_sent}")
+            
+            # Update status to PENDING_APPROVAL
+            invoice.status = "PENDING_APPROVAL"
+            invoice.audit_trail.append({
+                "t": "approval_requested",
+                "m": f"Approval request sent (email={result.email_sent}, sms={result.sms_sent})",
+                "threshold": settings.INVOICE_APPROVAL_THRESHOLD
+            })
+            flag_modified(invoice, "audit_trail")
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"Failed to send approval request: {e}")
+            # Don't fail the entire process if approval request fails
+    
     logger.info(f"Decision: {invoice.status} for {invoice_number}")
