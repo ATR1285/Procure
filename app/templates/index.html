@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procure-IQ | Autonomous Procurement Controller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .dot-green {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .dot-blue {
+            background: #3b82f6;
+            box-shadow: 0 0 8px #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-black p-1.5 rounded-lg">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-white"></i>
+                </div>
+                <h1 class="text-xl font-extrabold tracking-tight">ProcureIQ <span
+                        class="text-gray-400 font-medium">Dashboard</span></h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="/settings"
+                    class="border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2">
+                    <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                    Settings
+                </a>
+                <button onclick="triggerEmail()"
+                    class="bg-slate-900 hover:bg-black text-white px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                    Trigger Email Simulation
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Systems Card -->
+            <div
+                class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 flex items-center justify-around gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-green-50 rounded-2xl">
+                        <i data-lucide="database" class="w-6 h-6 text-green-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest" id="erp-label">ERP Source
+                        </h3>
+                        <p class="text-[10px] text-gray-400" id="erp-detail">Loading...</p>
+                    </div>
+                    <span id="erp-badge"
+                        class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Connected</span>
+                </div>
+                <div class="h-10 w-px bg-gray-100"></div>
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-blue-50 rounded-2xl">
+                        <i data-lucide="cpu" class="w-6 h-6 text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h3 id="ai-label" class="text-xs font-bold text-gray-500 uppercase tracking-widest">AI Engine
+                        </h3>
+                        <p id="ai-detail" class="text-[10px] text-gray-400">Loading...</p>
+                    </div>
+                    <span id="ai-badge"
+                        class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Detecting...</span>
+                </div>
+            </div>
+
+            <!-- Inventory Card -->
+            <div class="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h2 class="font-bold flex items-center gap-2 text-gray-700">
+                        <i data-lucide="boxes" class="w-4 h-4 text-gray-400"></i> Live Inventory
+                    </h2>
+                </div>
+                <div id="inventory-list" class="divide-y divide-gray-50">
+                    <div class="p-8 text-center text-gray-400 italic text-sm">Loading warehouse data...</div>
+                </div>
+            </div>
+
+            <!-- Alerts Section -->
+            <div class="space-y-4">
+                <h2
+                    class="text-[10px] font-extrabold text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+                    <i data-lucide="bell" class="w-3 h-3"></i> Stock Alerts (SMS SENT)
+                </h2>
+                <div id="alerts-list" class="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="p-12 text-center text-gray-400 italic text-sm">Checking sensors...</div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div
+                class="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                    <h2 class="font-bold text-lg text-gray-800">Recent Invoices</h2>
+                    <i data-lucide="history" class="w-4 h-4 text-gray-300"></i>
+                </div>
+                <div id="invoice-list" class="divide-y divide-gray-50">
+                    <div class="p-20 text-center space-y-3">
+                        <div
+                            class="animate-spin w-6 h-6 border-2 border-black border-t-transparent rounded-full mx-auto">
+                        </div>
+                        <p class="text-gray-400 text-sm italic">Syncing audit ledger...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-[32px] max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-8 space-y-6">
+            <div class="flex justify-between items-start">
+                <h2 id="modal-title" class="text-2xl font-extrabold tracking-tight">Invoice Details</h2>
+                <button onclick="closeModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors"><i
+                        data-lucide="x"></i></button>
+            </div>
+            <div id="modal-content" class="space-y-6"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "{{ api_key }}";
+
+        const getHeaders = () => ({
+            "X-API-Key": API_KEY,
+            "Content-Type": "application/json"
+        });
+
+        // Fetch functions
+        async function fetchInvoices() {
+            try {
+                const res = await fetch('/api/invoices', { headers: getHeaders() });
+                const data = await res.json();
+                renderInvoices(data);
+            } catch (err) { console.error("Invoices fetch failed", err); }
+        }
+
+        async function fetchInventory() {
+            try {
+                const res = await fetch('/api/inventory', { headers: getHeaders() });
+                const data = await res.json();
+                renderInventory(data);
+            } catch (err) { console.error("Inventory fetch failed", err); }
+        }
+
+        async function fetchAlerts() {
+            try {
+                const res = await fetch('/api/alerts', { headers: getHeaders() });
+                const data = await res.json();
+                renderAlerts(data);
+            } catch (err) { console.error("Alerts fetch failed", err); }
+        }
+
+        // Render functions
+        function renderInvoices(invoices) {
+            const list = document.getElementById('invoice-list');
+            if (!invoices || invoices.length === 0) {
+                list.innerHTML = '<p class="p-12 text-center text-gray-400 italic">No invoices recorded in ledger.</p>';
+                return;
+            }
+            list.innerHTML = invoices.map(inv => `
+                <div onclick="openModal(${inv.id})" class="p-6 hover:bg-gray-50/80 cursor-pointer transition-all flex items-center justify-between group">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3">
+                            <span class="font-extrabold text-lg text-slate-800">${inv.invoice_number}</span>
+                            <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold tracking-wider border ${getStatusStyle(inv.status)}">${inv.status}</span>
+                            <span class="text-[10px] text-gray-400 font-bold border border-gray-100 px-2 py-0.5 rounded-md uppercase">${inv.confidence_score || 0}% confidence</span>
+                        </div>
+                        <div class="text-xs text-slate-500 font-medium mt-1.5 uppercase tracking-wide">
+                            <span class="text-slate-900 font-bold">$${inv.total_amount?.toLocaleString()}</span> • ${inv.extracted_data?.vendor_name || inv.extracted_data?.raw_vendor || 'System Lookup'}
+                        </div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-gray-200 group-hover:text-black transform translate-x-0 group-hover:translate-x-1 transition-all"></i>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderInventory(items) {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = items.map(item => `
+                <div class="p-4 px-6 flex justify-between items-center group hover:bg-gray-50 transition-colors">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-gray-800">${item.name || item.item_name}</span>
+                        <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">${item.brand || 'General'}</span>
+                    </div>
+                    <div class="flex items-center gap-6">
+                        <div class="text-right">
+                            <p class="font-mono text-sm ${item.quantity <= (item.reorder_threshold || 10) ? 'text-red-600 font-bold' : 'text-gray-900'}">${item.quantity}</p>
+                            <p class="text-[8px] text-gray-400 font-bold uppercase">STOCK</p>
+                        </div>
+                        <div class="text-right w-16">
+                            <p class="text-[10px] text-gray-400 font-bold">LIMIT: ${item.reorder_threshold || item.limit_threshold}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAlerts(alerts) {
+            const list = document.getElementById('alerts-list');
+            const pending = alerts.filter(a => a.status === 'pending' || a.status === 'PENDING');
+            if (pending.length === 0) {
+                list.innerHTML = '<p class="p-12 text-center text-gray-400 italic text-sm">No active alerts detected.</p>';
+                return;
+            }
+            list.innerHTML = pending.map(a => {
+                const payload = a.payload || {};
+                return `
+                <div class="p-6 bg-white group hover:bg-amber-50/30 transition-colors">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="status-dot dot-blue animate-pulse"></span>
+                            <span class="font-extrabold text-amber-900 text-[10px] uppercase tracking-widest">${payload.item_name || 'System Item'} Stock Alert</span>
+                        </div>
+                        <span class="text-[9px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black tracking-tighter">SMS SENT</span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 font-medium leading-relaxed italic border-l-2 border-amber-200 pl-3">"${payload.message || 'Threshold reached.'}"</p>
+                    <button onclick="approveRefill(${a.id})" class="mt-4 w-full bg-slate-900 text-white text-[10px] font-bold py-2.5 rounded-xl hover:bg-black shadow-md hover:shadow-lg transition-all active:scale-95">CONFIRM REPLENISHMENT ORDERS</button>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Action functions
+        async function approveRefill(id) {
+            try {
+                await fetch(`/api/owner/approve-refill/${id}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                fetchAlerts();
+                fetchInventory();
+            } catch (err) { console.error("Refill approval failed", err); }
+        }
+
+        async function updateStatus(id, status) {
+            try {
+                const endpoint = status === 'APPROVED' ? 'approve' : 'reject';
+                await fetch(`/api/invoices/${id}/${endpoint}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                closeModal();
+                fetchInvoices();
+            } catch (err) { console.error("Status update failed", err); }
+        }
+
+        async function triggerEmail() {
+            try {
+                const num = Math.floor(Math.random() * 9000) + 1000;
+                await fetch('/api/simulation/trigger-email', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        vendorName: "Tech-Labs Global",
+                        invoiceAmount: (Math.random() * 2000 + 500).toFixed(2),
+                        invoiceNumber: "INV-" + num
+                    })
+                });
+                alert("Simulated Invoice Distributed! Agent processing engine started.");
+                fetchInvoices();
+            } catch (err) { console.error("Simulation failed", err); }
+        }
+
+        async function openModal(id) {
+            try {
+                const res = await fetch(`/api/invoices/${id}`, { headers: getHeaders() });
+                const inv = await res.json();
+                document.getElementById('modal-title').innerText = inv.invoice_number;
+                document.getElementById('modal-content').innerHTML = `
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-5 bg-gray-50/80 rounded-[20px] border border-gray-100">
+                            <label class="text-[9px] uppercase font-black text-gray-400 tracking-widest">Supplier Entity</label>
+                            <p class="font-bold text-slate-800 text-lg leading-tight mt-1">${inv.extracted_data?.vendor_name || inv.extracted_data?.raw_vendor || 'Pending Lookup'}</p>
+                        </div>
+                        <div class="p-5 bg-gray-50/80 rounded-[20px] border border-gray-100">
+                            <label class="text-[9px] uppercase font-black text-gray-400 tracking-widest">Financial Impact</label>
+                            <p class="font-bold text-slate-900 text-lg leading-tight mt-1">$${inv.total_amount?.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-blue-50/50 border border-blue-100 rounded-[20px] space-y-2">
+                        <h3 class="font-bold text-blue-700 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Autonomous Validation Reasoning
+                        </h3>
+                        <p class="text-xs text-blue-800 italic leading-relaxed font-medium">"${inv.reasoning_note || 'Initiating intelligent audit heuristics...'}"</p>
+                    </div>
+                    <div class="space-y-3">
+                        <h3 class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
+                            <i data-lucide="layers" class="w-3 h-3"></i> Audit Persistence Ledger
+                        </h3>
+                        <div class="space-y-1.5 max-h-48 overflow-y-auto pr-2 custom-scroll">
+                            ${inv.audit_trail.map((a, i) => `
+                                <div class="text-[10px] text-gray-500 font-medium flex items-start gap-4 p-3 bg-gray-50/30 rounded-xl border border-gray-100/50">
+                                    <span class="text-[10px] font-mono text-gray-300">#${(i + 1).toString().padStart(2, '0')}</span>
+                                    <span>${a.m || a.note || 'Processing sequence initiated...'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ${(inv.status === 'PENDING' || inv.status === 'PENDING_REVIEW') ? `
+                        <div class="flex gap-4 pt-4">
+                            <button onclick="updateStatus(${inv.id}, 'APPROVED')" class="flex-1 bg-black text-white py-4 rounded-2xl font-bold hover:bg-slate-900 transition-all shadow-lg active:scale-95">Authorize Transaction</button>
+                            <button onclick="updateStatus(${inv.id}, 'REJECTED')" class="px-8 border border-gray-200 rounded-2xl hover:bg-gray-50 font-bold text-gray-500 transition-all">Flag</button>
+                        </div>
+                    ` : ''}
+                `;
+                document.getElementById('modal').classList.remove('hidden');
+                lucide.createIcons();
+            } catch (err) { console.error("Modal open failed", err); }
+        }
+
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+        function getStatusStyle(s) {
+            if (s === 'APPROVED') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+            if (s === 'PENDING') return 'bg-amber-50 text-amber-700 border-amber-100';
+            if (s === 'PENDING_REVIEW') return 'bg-blue-50 text-blue-700 border-blue-100';
+            if (s === 'PROCESSING') return 'bg-purple-50 text-purple-700 border-purple-100';
+            if (s === 'REJECTED') return 'bg-red-50 text-red-700 border-red-100';
+            if (s === 'ESCALATED') return 'bg-red-50 text-red-800 border-red-200';
+            return 'bg-gray-50 text-gray-500 border-gray-100';
+        }
+
+        // Init & Polling
+        async function fetchERPStatus() {
+            try {
+                const res = await fetch('/api/erp/current', { headers: getHeaders() });
+                const data = await res.json();
+                document.getElementById('erp-label').textContent = data.connection_name || 'ERP Source';
+                document.getElementById('erp-detail').textContent = data.erp_type === 'python_db' ? 'Python Sample DB (Local)' : (data.api_url || data.erp_type);
+                document.getElementById('erp-badge').textContent = data.test_status === 'success' ? 'Connected' : 'Configured';
+            } catch (err) { console.error('ERP status failed', err); }
+        }
+        async function fetchAIStatus() {
+            try {
+                const res = await fetch('/api/ai-status');
+                const data = await res.json();
+                document.getElementById('ai-label').textContent = data.provider || 'AI Engine';
+                document.getElementById('ai-detail').textContent = data.detail + (data.status === 'active' ? ' active' : '');
+                document.getElementById('ai-badge').textContent = data.status === 'active' ? 'Autonomous' : 'Inactive';
+                document.getElementById('ai-badge').className = data.status === 'active'
+                    ? 'bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold'
+                    : 'bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold';
+            } catch (err) { console.error('AI status failed', err); }
+        }
+        setInterval(() => { fetchInvoices(); fetchInventory(); fetchAlerts(); }, 5000);
+        window.onload = () => {
+            fetchInvoices(); fetchInventory(); fetchAlerts(); fetchERPStatus(); fetchAIStatus();
+            lucide.createIcons();
+        }
+    </script>
+    <style>
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</body>
+
+</html>

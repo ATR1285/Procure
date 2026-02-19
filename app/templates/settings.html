@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProcureIQ | ERP Connection Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-black p-1.5 rounded-lg">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-white"></i>
+                </div>
+                <h1 class="text-xl font-extrabold tracking-tight">ProcureIQ <span
+                        class="text-gray-400 font-medium">Settings</span></h1>
+            </div>
+            <a href="/"
+                class="bg-slate-900 hover:bg-black text-white px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+                Back to Dashboard
+            </a>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-6 py-8" x-data="erpSettings()">
+
+        <!-- Current Connection Status -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 rounded-2xl" :class="connected ? 'bg-green-50' : 'bg-gray-50'">
+                        <i data-lucide="database" class="w-6 h-6"
+                            :class="connected ? 'text-green-600' : 'text-gray-400'"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Active ERP Connection</h3>
+                        <p class="text-lg font-bold text-gray-900 mt-0.5" x-text="currentName"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
+                        :class="connected ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                        x-text="connected ? 'Connected' : 'Not Tested'"></span>
+                    <span
+                        class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-700"
+                        x-text="currentType"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Form -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-100 bg-gray-50/50">
+                <h2 class="font-bold text-lg text-gray-800 flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-gray-400"></i>
+                    Configure ERP Connection
+                </h2>
+                <p class="text-sm text-gray-500 mt-1">Connect your ERP system or use the built-in Python Sample DB for
+                    demos.</p>
+            </div>
+
+            <form @submit.prevent="saveConnection()" class="p-6 space-y-6">
+                <!-- Connection Name -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Connection
+                        Name</label>
+                    <input x-model="form.connection_name" type="text" placeholder="e.g., Production Database"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                </div>
+
+                <!-- ERP Type -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ERP Type</label>
+                    <select x-model="form.erp_type"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all bg-white">
+                        <option value="python_db">Python Sample DB (Demo)</option>
+                        <option value="sap">SAP S/4HANA</option>
+                        <option value="netsuite">Oracle NetSuite</option>
+                        <option value="custom">Custom API</option>
+                    </select>
+                </div>
+
+                <!-- Real ERP Fields (shown when not python_db) -->
+                <template x-if="form.erp_type !== 'python_db'">
+                    <div class="space-y-6 p-5 bg-gray-50 rounded-xl border border-gray-100">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API
+                                URL</label>
+                            <input x-model="form.api_url" type="url" placeholder="https://your-erp.example.com"
+                                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API Key
+                                / Password</label>
+                            <input x-model="form.api_key" type="password" placeholder="Enter API key or password"
+                                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Database
+                                    Name</label>
+                                <input x-model="form.database_name" type="text" placeholder="e.g., production_db"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Username</label>
+                                <input x-model="form.username" type="text" placeholder="admin@company.com"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Test Result -->
+                <div x-show="testResult" class="p-4 rounded-xl border text-sm font-medium"
+                    :class="testSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'">
+                    <div class="flex items-center gap-2">
+                        <i :data-lucide="testSuccess ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i>
+                        <span x-text="testResult"></span>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-4 pt-2">
+                    <button type="button" @click="testConnection()"
+                        class="flex-1 px-5 py-3.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+                        :disabled="testing">
+                        <i data-lucide="wifi" class="w-4 h-4"></i>
+                        <span x-text="testing ? 'Testing...' : 'Test Connection'"></span>
+                    </button>
+                    <button type="submit"
+                        class="flex-1 bg-slate-900 hover:bg-black text-white px-5 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                        :disabled="saving">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span x-text="saving ? 'Saving...' : 'Save & Activate'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Architecture Info -->
+        <div class="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <h3 class="font-bold text-sm text-gray-800 flex items-center gap-2 mb-3">
+                <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
+                About This Architecture
+            </h3>
+            <p class="text-sm text-gray-600 leading-relaxed">
+                ProcureIQ uses an <strong>ERP Adapter pattern</strong> — the AI agent works with a unified interface
+                regardless of whether you're using the built-in Python Sample DB or a real ERP system.
+                Switch between backends without changing a single line of agent code.
+            </p>
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="p-3 bg-gray-50 rounded-xl text-center">
+                    <p class="text-xs font-bold text-gray-400 uppercase">Python DB</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">Default</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-xl text-center">
+                    <p class="text-xs font-bold text-gray-400 uppercase">Custom</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">REST API</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-xl text-center">
+                    <p class="text-xs font-bold text-gray-400 uppercase">SAP</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">OData</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-xl text-center">
+                    <p class="text-xs font-bold text-gray-400 uppercase">NetSuite</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">REST</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_KEY = "{{ api_key }}";
+        const getHeaders = () => ({
+            "X-API-Key": API_KEY,
+            "Content-Type": "application/json"
+        });
+
+        function erpSettings() {
+            return {
+                currentName: 'Loading...',
+                currentType: '...',
+                connected: false,
+                testing: false,
+                saving: false,
+                testResult: '',
+                testSuccess: false,
+                form: {
+                    connection_name: 'Python Sample DB',
+                    erp_type: 'python_db',
+                    api_url: '',
+                    api_key: '',
+                    database_name: '',
+                    username: ''
+                },
+
+                async init() {
+                    await this.fetchCurrentConnection();
+                    lucide.createIcons();
+                },
+
+                async fetchCurrentConnection() {
+                    try {
+                        const res = await fetch('/api/erp/current', { headers: getHeaders() });
+                        const data = await res.json();
+                        this.currentName = data.connection_name || 'Python Sample DB';
+                        this.currentType = data.erp_type || 'python_db';
+                        this.connected = data.test_status === 'success';
+                        // Pre-fill form
+                        this.form.connection_name = data.connection_name || 'Python Sample DB';
+                        this.form.erp_type = data.erp_type || 'python_db';
+                        this.form.api_url = data.api_url || '';
+                    } catch (err) {
+                        console.error('Failed to fetch current connection', err);
+                    }
+                },
+
+                async testConnection() {
+                    this.testing = true;
+                    this.testResult = '';
+                    try {
+                        const res = await fetch('/api/erp/test-connection', {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify(this.form)
+                        });
+                        const data = await res.json();
+                        this.testSuccess = data.success;
+                        this.testResult = data.message;
+                        this.$nextTick(() => lucide.createIcons());
+                    } catch (err) {
+                        this.testSuccess = false;
+                        this.testResult = 'Connection test failed: ' + err.message;
+                    }
+                    this.testing = false;
+                },
+
+                async saveConnection() {
+                    this.saving = true;
+                    try {
+                        const res = await fetch('/api/erp/save-connection', {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify(this.form)
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.testResult = 'Connection saved and activated!';
+                            this.testSuccess = true;
+                            await this.fetchCurrentConnection();
+                            this.$nextTick(() => lucide.createIcons());
+                        } else {
+                            this.testResult = data.message || 'Save failed';
+                            this.testSuccess = false;
+                        }
+                    } catch (err) {
+                        this.testResult = 'Save failed: ' + err.message;
+                        this.testSuccess = false;
+                    }
+                    this.saving = false;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
