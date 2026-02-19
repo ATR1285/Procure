@@ -62,14 +62,23 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     # ERP INTEGRATION (v2.0)
     # ═══════════════════════════════════════════
-    ERP_TYPE: str = Field(default="local", description="ERP type: local, odoo, custom")
+    # ═══════════════════════════════════════════
+    # ERP INTEGRATION (v2.0)
+    # ═══════════════════════════════════════════
+    ERP_TYPE: str = Field(default="local", description="ERP type: local, odoo, sap, netsuite, custom")
     ERP_API_URL: Optional[str] = Field(default=None, description="ERP API base URL")
     ERP_API_KEY: Optional[str] = Field(default=None, description="ERP API key")
+    
+    # Odoo Specific (Local)
     ODOO_DB: Optional[str] = Field(default=None, description="Odoo database name")
     ODOO_USERNAME: Optional[str] = Field(default=None, description="Odoo username")
     ODOO_URL: Optional[str] = Field(default=None, description="Odoo server URL")
     ODOO_USER: Optional[str] = Field(default=None, description="Odoo user email")
     ODOO_PASSWORD: Optional[str] = Field(default=None, description="Odoo password")
+    
+    # Generic (Remote)
+    DATABASE_NAME: Optional[str] = Field(default=None, description="Generic database name storage")
+    USERNAME: Optional[str] = Field(default=None, description="Generic username storage")
     
     # ═══════════════════════════════════════════
     # VISION/OCR MODEL
@@ -86,8 +95,10 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     # LEGACY SETTINGS (v1.x compatibility)
     # ═══════════════════════════════════════════
+    # Ollama local LLM (deprecated in v2.0)
     OLLAMA_URL: str = Field(default="http://localhost:11434/v1", description="Ollama API URL (deprecated)")
     OLLAMA_MODEL: str = Field(default="llama3.1:8b", description="Ollama model (deprecated)")
+
     CONFIDENCE_AUTO_APPROVE: float = Field(default=0.95, description="Auto-approve confidence threshold")
     CONFIDENCE_REVIEW_THRESHOLD: float = Field(default=0.75, description="Review confidence threshold")
     

@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+<<<<<<< HEAD
 *$py.class
 *.so
 .Python
@@ -31,16 +32,39 @@ wheels/
 *.key
 
 # IDEs
+=======
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+>>>>>>> origin/main
 .vscode/
 .idea/
 *.swp
 *.swo
+<<<<<<< HEAD
 *~
+=======
+>>>>>>> origin/main
 
 # OS
 .DS_Store
 Thumbs.db
 
+<<<<<<< HEAD
 # Project specific
 node_modules/
 data/
@@ -54,3 +78,15 @@ logs/
 procure_iq.db
 procure_iq.db-wal
 procure_iq.db-shm
+=======
+# Logs
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Gemini/Agent artifacts
+.gemini/
+>>>>>>> origin/main

@@ -1,3 +1,17 @@
+"""
+Procure-IQ Autonomous Agent Loop
+
+ENTERPRISE DATABASE RULES:
+- Fresh session per poll cycle (no stale reads)
+- Event locking: PENDING → PROCESSING → DONE
+- Immediate commits after every state change
+- Agent sees DB changes from UI/API instantly
+- UI sees agent changes via 5-second polling
+
+The agent IS the background process.
+It works whether the UI is running or not.
+"""
+
 import time
 import datetime
 import asyncio
@@ -6,128 +20,130 @@ from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from .. import models
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Agent")
 
 def start_agent_loop():
     """
-    Autonomous agent loop with exponential backoff and stock monitoring.
+    Autonomous agent loop — single source of truth is the database.
     
-    Processes:
-    1. Pending events (invoice matching, etc.)
-    2. Stock alerts (every 60 seconds)
+    Every poll cycle:
+    1. Opens a FRESH db session (sees latest committed state)
+    2. Claims PENDING events by setting status → PROCESSING (atomic lock)
+    3. Processes each event
+    4. Sets status → DONE or FAILED
+    5. Closes session
     
-    Features:
-    - Exponential backoff (2s to 30s) when idle
-    - Graceful shutdown on KeyboardInterrupt
-    - Comprehensive error handling
-    - Detailed logging with timestamps
+    This ensures:
+    - No double-processing (PENDING→PROCESSING lock)
+    - Agent sees UI/API writes immediately
+    - UI sees agent writes immediately (via polling)
     """
-    db = SessionLocal()
-    wait_time = 2  # Initial wait time in seconds
-    last_stock_check = 0  # Timestamp of last stock check
-    STOCK_CHECK_INTERVAL = 60  # Check stock every 60 seconds
+    wait_time = 2
+    last_stock_check = 0
+    last_email_check = 0
+    STOCK_CHECK_INTERVAL = 60
+    EMAIL_CHECK_INTERVAL = 300
     
-    print(f"[{datetime.datetime.now()}] Agent loop started")
+    logger.info("=" * 60)
+    logger.info("[AGENT] Procure-IQ Autonomous Agent STARTED")
+    logger.info(f"[AGENT] Timestamp: {datetime.datetime.now().isoformat()}")
+    logger.info(f"[AGENT] Database: Single shared SQLite (WAL mode)")
+    logger.info(f"[AGENT] Poll interval: {wait_time}s (backoff to 30s when idle)")
+    logger.info("=" * 60)
     
     while True:
-        # Create a new session for each loop iteration to ensure it's fresh
+        # FRESH session every cycle — always sees latest committed state
         db = SessionLocal()
         try:
-            # 1. Update worker heartbeat
+            # ── Heartbeat ──────────────────────────────────────
             try:
-                status = db.query(models.SystemStatus).filter(models.SystemStatus.service_name == "worker").first()
+                status = db.query(models.SystemStatus).filter(
+                    models.SystemStatus.service_name == "agent"
+                ).first()
                 if not status:
-                    status = models.SystemStatus(service_name="worker", status="healthy")
+                    status = models.SystemStatus(service_name="agent", status="healthy")
                     db.add(status)
-                status.last_heartbeat = datetime.datetime.now() # Use datetime.datetime.now()
+                status.last_heartbeat = datetime.datetime.now()
                 status.status = "healthy"
                 db.commit()
             except Exception as e:
-                logger.error(f"Failed to update worker heartbeat: {e}")
+                logger.error(f"[AGENT] Heartbeat failed: {e}")
                 db.rollback()
 
-            # 2. Process events
-            logger.info("Worker: Checking for new events...")
-
+            # ── Poll for PENDING events ────────────────────────
             current_time = time.time()
+            logger.info(f"[AGENT] Polling for PENDING events...")
             
-            # 1. Process pending events (invoice matching, etc.)
-            events = db.query(models.Event).filter(models.Event.status == 'pending').all()
+            events = db.query(models.Event).filter(
+                models.Event.status == 'PENDING'
+            ).all()
             
             if events:
-                # Reset wait time if events were found
-                wait_time = 2
+                wait_time = 2  # Reset backoff
+                logger.info(f"[AGENT] Found {len(events)} PENDING event(s)")
                 
                 for event in events:
-                    print(f"[{datetime.datetime.now()}] Processing event ID {event.id} of type {event.event_type}")
+                    # ── LOCK: Claim event (PENDING → PROCESSING) ──
+                    event.status = 'PROCESSING'
+                    db.commit()
+                    logger.info(f"[AGENT] ── Locked event {event.id} (PROCESSING) ──")
                     
                     try:
-                        # Process event based on type
                         if event.event_type == "INVOICE_RECEIVED":
+                            vendor = event.payload.get('vendorName', 'Unknown')
+                            amount = event.payload.get('invoiceAmount', 0)
+                            logger.info(f"[AGENT] Processing INVOICE_RECEIVED: vendor='{vendor}', amount={amount}")
+                            
                             from ..agent.matcher import process_invoice_match
                             process_invoice_match(db, event.payload)
+                            
+                            logger.info(f"[AGENT] ✓ Invoice match computed, DB updated")
                         
-                        # Mark as completed
-                        event.status = 'completed'
+                        # ── DONE: Mark event complete ──────────────
+                        event.status = 'DONE'
                         event.processed_at = datetime.datetime.now()
                         db.commit()
-                        
-                        print(f"[{datetime.datetime.now()}] Event {event.id} completed successfully")
+                        logger.info(f"[AGENT] ✓ Event {event.id} → DONE (committed)")
                         
                     except Exception as e:
-                        print(f"[{datetime.datetime.now()}] ERROR processing event {event.id}: {e}")
-                        event.status = 'failed'
+                        logger.error(f"[AGENT] ✗ Event {event.id} FAILED: {e}")
+                        event.status = 'FAILED'
                         db.commit()
+            else:
+                logger.debug(f"[AGENT] No PENDING events (backoff: {wait_time}s)")
             
-            # 2. Check stock alerts (every 60 seconds)
+            # ── Stock alerts ───────────────────────────────────
             if current_time - last_stock_check >= STOCK_CHECK_INTERVAL:
-                print(f"[{datetime.datetime.now()}] Running stock alert check...")
-                
+                logger.info(f"[AGENT] Running stock alert check...")
                 try:
                     from ..services.alert_service import process_stock_alerts
                     
-                    # Run async function in sync context
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     result = loop.run_until_complete(process_stock_alerts(db))
                     loop.close()
                     
                     if result.get('low_stock_items', 0) > 0:
-                        print(f"[{datetime.datetime.now()}] Stock alerts: {result['low_stock_items']} items, "
-                              f"email={result['email_sent']}, sms={result['sms_sent']}")
-                    
+                        logger.info(f"[AGENT] Stock alerts: {result['low_stock_items']} items flagged")
                     last_stock_check = current_time
-                    
                 except Exception as e:
-                    print(f"[{datetime.datetime.now()}] ERROR in stock alert check: {e}")
-                    last_stock_check = current_time  # Don't retry immediately
+                    logger.error(f"[AGENT] Stock alert error: {e}")
+                    last_stock_check = current_time
             
-            # 3. Check for invoice emails (every 5 minutes)
-            EMAIL_CHECK_INTERVAL = 300  # 5 minutes
-            if 'last_email_check' not in locals():
-                last_email_check = 0
-            
+            # ── Email ingestion ────────────────────────────────
             if current_time - last_email_check >= EMAIL_CHECK_INTERVAL:
-                print(f"[{datetime.datetime.now()}] Checking for invoice emails...")
-                
+                logger.info(f"[AGENT] Checking for invoice emails...")
                 try:
                     from ..services.email_service import EmailIngestionService
-                    
-                    # Initialize email service
                     email_service = EmailIngestionService()
-                    
-                    # Fetch latest invoices
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     invoices = loop.run_until_complete(email_service.fetch_latest_invoices())
                     loop.close()
                     
                     if invoices:
-                        print(f"[{datetime.datetime.now()}] Found {len(invoices)} invoice emails")
-                        
-                        # Create events for each invoice
+                        logger.info(f"[AGENT] Found {len(invoices)} invoice emails")
                         for invoice in invoices:
-                            # Create INVOICE_RECEIVED event
                             event = models.Event(
                                 event_type="INVOICE_RECEIVED",
                                 payload={
@@ -141,48 +157,42 @@ def start_agent_loop():
                                     "email_date": invoice['date'],
                                     "extraction_confidence": invoice['confidence']
                                 },
-                                status="pending"
+                                status="PENDING"
                             )
                             db.add(event)
-                        
                         db.commit()
-                        print(f"[{datetime.datetime.now()}] Created {len(invoices)} invoice events")
-                    
+                        logger.info(f"[AGENT] Created {len(invoices)} PENDING events from email")
                     last_email_check = current_time
-                    
                 except Exception as e:
-                    print(f"[{datetime.datetime.now()}] ERROR in email check: {e}")
-                    last_email_check = current_time  # Don't retry immediately
+                    logger.error(f"[AGENT] Email check error: {e}")
+                    last_email_check = current_time
             
-            # 4. Exponential backoff when idle
+            # ── Backoff ────────────────────────────────────────
             if not events:
-                print(f"[{datetime.datetime.now()}] No events found. Waiting for {wait_time} seconds...")
                 time.sleep(wait_time)
-                wait_time = min(wait_time * 2, 30)  # Double wait time, max 30 seconds
+                wait_time = min(wait_time * 2, 30)
             else:
-                time.sleep(2)  # Small delay between event batches
+                time.sleep(2)
 
         except KeyboardInterrupt:
-            print(f"\n[{datetime.datetime.now()}] Agent loop stopped cleanly.")
+            logger.info(f"\n[AGENT] Shutdown requested. Agent stopped cleanly.")
             break
-            
         except Exception as e:
-            print(f"[{datetime.datetime.now()}] ERROR in agent loop: {e}")
-            
-            # Log error to database
+            logger.error(f"[AGENT] Loop error: {e}")
             try:
                 error_log = models.Event(
                     event_type="AGENT_ERROR",
                     payload={"error": str(e), "timestamp": datetime.datetime.now().isoformat()},
-                    status="failed"
+                    status="FAILED"
                 )
                 db.add(error_log)
                 db.commit()
             except:
-                pass  # Don't crash if logging fails
-            
-            time.sleep(wait_time)  # Wait before retrying after error
-            wait_time = min(wait_time * 2, 30)  # Continue exponential backoff
+                pass
+            time.sleep(wait_time)
+            wait_time = min(wait_time * 2, 30)
+        finally:
+            # ALWAYS close the session — next cycle gets a fresh one
+            db.close()
     
-    db.close()
-    print(f"[{datetime.datetime.now()}] Agent loop terminated")
+    logger.info(f"[AGENT] Procure-IQ Autonomous Agent TERMINATED")

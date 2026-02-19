@@ -76,6 +76,14 @@ def read_root(request: Request):
         "api_key": API_KEY
     })
 
+@app.get("/settings")
+def settings_page(request: Request):
+    """ERP Connection Settings page."""
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "api_key": API_KEY
+    })
+
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
@@ -123,25 +131,56 @@ async def startup_event():
 
 @app.get("/api/ai-health", dependencies=[Depends(verify_api_key)])
 async def ai_health_check():
-    """AI health and metrics."""
+    """AI health and metrics (authenticated)."""
     from .agent.ai_client import get_ai_client
     client = get_ai_client()
     health = await client.health_check()
-    stats = client.get_stats()
     return {
         "status": "ok",
         "services": health,
-        "usage": stats,
         "timestamp": datetime.datetime.now().isoformat()
     }
 
+@app.get("/api/ai-status")
+async def ai_status():
+    """Public endpoint returning current AI provider for dashboard badge."""
+    from .agent.ai_client import get_ai_client
+    client = get_ai_client()
+    
+    provider = "No AI Configured"
+    detail = "Rule-based fallback"
+    status = "inactive"
+    
+    if hasattr(client, 'client') and client.client:
+        provider = "Gemini 2.0 Flash"
+        detail = "OpenRouter API"
+        status = "active"
+    elif hasattr(client, 'gemini_model') and client.gemini_model:
+        provider = "Gemini (Direct)"
+        detail = "Google AI SDK"
+        status = "active"
+    elif hasattr(client, 'openai_client') and client.openai_client:
+        provider = "GPT-4o"
+        detail = "OpenAI API"
+        status = "active"
+    
+    return {
+        "provider": provider,
+        "detail": detail,
+        "status": status,
+        "model": getattr(client, 'primary_model', 'unknown')
+    }
+
 # --- Include Modules ---
-from .api import invoices, simulation, owner_actions, approval_routes, analytics_routes
+from .api import invoices, simulation, owner_actions, approval_routes, analytics_routes, erp_management
 
 app.include_router(invoices.router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(simulation.router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(owner_actions.router, dependencies=[Depends(verify_api_key)])
 app.include_router(analytics_routes.router, dependencies=[Depends(verify_api_key)])
+
+# ERP Management Routes
+app.include_router(erp_management.router, dependencies=[Depends(verify_api_key)])
 
 # Public Approval Routes (Token-based)
 app.include_router(approval_routes.router, prefix="/api", tags=["approvals"])
@@ -165,3 +204,12 @@ def seed_inventory():
     db.close()
 
 seed_inventory()
+
+# Seed ERP data (vendors, POs, receipts)
+from .init_db import seed_erp_data
+try:
+    _db = SessionLocal()
+    seed_erp_data(_db)
+    _db.close()
+except Exception as e:
+    print(f"[WARN] ERP seed: {e}")

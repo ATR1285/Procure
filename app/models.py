@@ -1,16 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Text
+from sqlalchemy.orm import relationship
+from .database import Base
 import datetime
-
-SQLALCHEMY_DATABASE_URL = "sqlite:///./procure_iq.db"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
 
 class Vendor(Base):
     __tablename__ = "vendors"
@@ -194,3 +185,35 @@ class PurchaseOrder(Base):
     # Supplier communication
     email_sent_at = Column(DateTime, nullable=True)
     expected_delivery_date = Column(DateTime, nullable=True)
+
+class GoodsReceipt(Base):
+    """
+    Goods receipts for three-way match verification.
+    Links received goods to purchase orders for invoice validation.
+    """
+    __tablename__ = "goods_receipts"
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"))
+    received_date = Column(DateTime, default=datetime.datetime.utcnow)
+    received_quantity = Column(Integer, default=0)
+    received_amount = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
+
+class ERPConnection(Base):
+    """
+    Stores user's ERP connection credentials.
+    Enables switching between Python sample DB and real ERP without code changes.
+    """
+    __tablename__ = "erp_connections"
+    id = Column(Integer, primary_key=True, index=True)
+    connection_name = Column(String)  # e.g., 'Production SAP'
+    erp_type = Column(String)  # 'python_db', 'sap', 'netsuite', 'custom'
+    api_url = Column(String, nullable=True)
+    api_key = Column(String, nullable=True)
+    database_name = Column(String, nullable=True)
+    username = Column(String, nullable=True)
+    is_active = Column(Boolean, default=False)  # Only one active at a time
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_tested = Column(DateTime, nullable=True)
+    test_status = Column(String, default='untested')  # 'success', 'failed', 'untested'
+    test_error = Column(Text, nullable=True)

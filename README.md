@@ -107,9 +107,14 @@ We prioritize safety and reliability in our AI implementation:
 - **API Docs:** Swagger/OpenAPI auto-generated
 
 ### AI & Integrations
+<<<<<<< HEAD
 - **Primary AI:** Google Gemini 1.5 Pro/Flash
 - **Fallback AI:** OpenAI GPT-4o
 - **Optional:** Ollama (local models)
+=======
+- **Primary AI:** Google Gemini 2.0 Flash (via OpenRouter)
+- **Fallback AI:** Google Gemini 2.5 Flash Preview
+>>>>>>> origin/main
 - **Email:** Gmail API with OAuth2
 - **Notifications:** Twilio SMS
 - **Monitoring:** Prometheus + Sentry
@@ -132,11 +137,18 @@ We prioritize safety and reliability in our AI implementation:
 
 ```bash
 # Clone repository
+<<<<<<< HEAD
 git clone https://github.com/ATR1285/Procure.git
 cd Procure
 
 # Install dependencies
 cd procure_iq_backend
+=======
+git clone https://github.com/ATR1285/Procure-IQ.git
+cd Procure-IQ
+
+# Install dependencies
+>>>>>>> origin/main
 pip install -r requirements.txt
 
 # Configure environment
@@ -144,6 +156,7 @@ cp .env.example .env
 # Edit .env with your credentials
 ```
 
+<<<<<<< HEAD
 ### Run the Server
 
 ```bash
@@ -151,6 +164,91 @@ cp .env.example .env
 python procure_iq_backend/run.py
 ```
 Server runs on `http://localhost:8888`
+=======
+### Run the Server (with UI)
+
+```bash
+python run.py
+```
+Server runs on `http://localhost:8000`
+
+---
+
+## 🤖 Run Agent Without UI (Standalone Autonomy)
+
+The agent can run **completely independently** of the web UI:
+
+```bash
+# Start the autonomous agent (no UI needed)
+python agent_runner.py
+```
+
+### Prove Autonomy
+In a **separate terminal**, insert an event:
+```bash
+python -c "
+import sys; sys.path.insert(0, '.')
+from app.database import SessionLocal
+from app import models
+db = SessionLocal()
+e = models.Event(
+    event_type='INVOICE_RECEIVED',
+    payload={'invoiceNumber': 'INV-TEST-001', 'vendorName': 'Acme Corp', 'invoiceAmount': 1500.00},
+    status='PENDING'
+)
+db.add(e); db.commit()
+print(f'Event {e.id} created.')
+"
+```
+
+Watch the agent logs — the invoice is processed **automatically, no UI interaction**.
+
+---
+
+## 🧠 Observe Learning
+
+Learning is automatic and persists across restarts:
+
+1. **First invoice** from "Acme Corp" → AI matches to "Acme Industries" at ~60% confidence
+2. **Human approves** → system auto-learns alias: `"Acme Corp" → "Acme Industries"`
+3. **Second invoice** from "Acme Corp" → alias hits instantly → **100% confidence**
+
+Logs to watch:
+```
+[LEARNING] Learning alias: 'Acme Corp' → 'Acme Industries' (vendor_id=1)
+[LEARNING] Alias applied: 'Acme Corp' → vendor_id=1, confidence improved to 100%
+```
+
+All alias data is stored in the `vendor_aliases` table and survives restarts.
+
+---
+
+## ⚡ How Real-Time Updates Work
+
+### Single Source of Truth
+The SQLite database (WAL mode) is the **only** shared state. Components never cache or mirror data.
+
+### Event Lifecycle
+```
+PENDING → PROCESSING → DONE/FAILED
+```
+- **UI/API inserts event** → status = `PENDING`, committed immediately
+- **Agent polls** → sees `PENDING`, sets status = `PROCESSING` (lock) 
+- **Agent completes** → sets status = `DONE`, commits immediately
+- **UI polls** (every 5s) → reads latest DB state, shows updated invoice
+
+### Simultaneous Visibility
+| Writer | Reader | How |
+|---|---|---|
+| UI creates event | Agent sees it | Fresh session per poll cycle |
+| Agent updates invoice | UI shows it | UI polls `/api/invoices` every 5s |
+| Human approves | Learning persists | Alias stored via `erp_adapter.store_vendor_alias()` |
+
+### Concurrency Safety
+- Fresh DB session per operation (no stale reads)
+- Event locking prevents double-processing
+- WAL mode enables concurrent readers + one writer
+>>>>>>> origin/main
 
 ---
 
@@ -177,6 +275,7 @@ Server runs on `http://localhost:8888`
 ## 🏗️ Project Structure
 
 ```
+<<<<<<< HEAD
 procure_iq_backend/
 ├── app/
 │   ├── agent/              # AI client, memory, inventory manager
@@ -196,6 +295,29 @@ procure_iq_backend/
 ├── config.py               # Environment configuration
 ├── gmail_checker.py        # Automated email processor
 ├── gmail_auth_setup.py     # OAuth setup script
+=======
+Procure-IQ/
+├── app/
+│   ├── agent/              # AI client, matcher, worker loop
+│   │   ├── ai_client.py    # OpenRouter/Gemini AI integration
+│   │   ├── matcher.py      # Vendor matching via ERP adapter
+│   │   └── worker.py       # Autonomous agent loop
+│   ├── api/                # FastAPI routes
+│   │   ├── invoices.py     # Invoice CRUD + approval + learning
+│   │   ├── simulation.py   # Trigger simulation events
+│   │   └── approval_routes.py
+│   ├── services/           # ERP adapter, email, SMS
+│   │   ├── erp_adapter.py  # ERP abstraction layer
+│   │   └── python_erp.py   # Local SQLite ERP client
+│   ├── validators/         # AI safety & validation
+│   ├── models.py           # SQLAlchemy models (single source)
+│   ├── schemas.py          # Pydantic schemas
+│   ├── database.py         # DB engine (WAL mode, shared)
+│   └── main.py             # FastAPI app + agent thread
+├── agent_runner.py         # Standalone agent (no UI)
+├── config.py               # Environment configuration
+├── gmail_auth_setup.py     # Gmail OAuth setup
+>>>>>>> origin/main
 ├── run.py                  # Server launcher
 ├── requirements.txt        # Dependencies
 ├── Dockerfile              # Docker image
@@ -236,10 +358,17 @@ docker-compose logs -f
 ### Health Checks
 ```bash
 # System status
+<<<<<<< HEAD
 curl -H "X-API-Key: your_key" http://localhost:8888/api/system/status
 
 # AI health
 curl -H "X-API-Key: your_key" http://localhost:8888/api/ai-health
+=======
+curl -H "X-API-Key: your_key" http://localhost:8000/api/system/status
+
+# AI health
+curl -H "X-API-Key: your_key" http://localhost:8000/api/ai-health
+>>>>>>> origin/main
 
 # Metrics
 curl http://localhost:8888/metrics
