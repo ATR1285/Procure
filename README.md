@@ -1,396 +1,219 @@
-# 🚀 ProcureIQ - AI-Powered Autonomous Procurement System
+# Procure-IQ 🤖
+### Intelligent Autonomous Procurement System
 
-> Intelligent invoice processing with autonomous vendor matching and real-time inventory management.
-
-[![Deployment Status](https://img.shields.io/badge/deployment-live-success)](https://procureiq.onrender.com/)
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-
-## 🌐 Live Deployment
-
-🔗 **Application:** [https://procureiq.onrender.com/](https://procureiq.onrender.com/)  
-📚 **API Docs:** [https://procureiq.onrender.com/docs](https://procureiq.onrender.com/docs)  
-📊 **System Status:** [https://procureiq.onrender.com/api/system/status](https://procureiq.onrender.com/api/system/status)
-
----
-
-## ❓ Problem Statement
-
-Small and medium-sized businesses (SMBs) struggle with manual procurement processes:
-*   **Invoice Chaos:** Hours spent manually typing invoice data into Excel or ERPs.
-*   **Stockouts:** "Forget to order" moments leading to lost revenue.
-*   **Vendor Drift:** Losing track of negotiated rates and vendor performance.
-*   **Security Risks:** Email-based approval processes are vulnerable to phishing and fraud.
-
-**ProcureIQ** solves this with an **autonomous agent** that lives in your inbox, extracts data with AI, manages inventory, and secures high-value decisions with tokenized approvals.
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    subgraph "External World"
-        Gmail[Gmail Inbox]
-        Vendor[Vendor Email]
-        User[Admin User]
-    end
-
-    subgraph "ProcureIQ Brain"
-        Agent[Autonomous Agent Loop]
-        Checker[Gmail Checker]
-        API[FastAPI Server]
-        DB[(SQLite Database)]
-        
-        subgraph "AI Core"
-            Gemini[Gemini 1.5 Pro]
-            GPT[GPT-4o Fallback]
-            Validator[Safety Validator]
-        end
-    end
-
-    Vendor -->|Send Invoice| Gmail
-    Gmail -->|Poll| Checker
-    Checker -->|Raw Text| Validator
-    Validator -->|Clean Prompt| Gemini
-    Gemini -->|JSON Data| API
-    
-    Agent -->|Monitor Stock| DB
-    Agent -->|Auto-Reorder| Vendor
-    
-    User -->|View Dashboard| API
-    API -->|Store/Retrieve| DB
-```
-
----
-
-## 🤖 Responsible & Secure AI
-
-We prioritize safety and reliability in our AI implementation:
-
-1.  **Prompt Injection Defense**: Every input passes through a dedicated validator that checks for 20+ known injection patterns before reaching the LLM.
-2.  **Confidence Scoring**: 
-    *   **≥ 95%**: Auto-approved.
-    *   **75% - 94%**: Flagged for human review.
-    *   **< 75%**: Rejected/Escalated.
-3.  **Hallucination Prevention**: We use strict schemas (Pydantic) and multi-model verification (Gemini checked against Rule-Based logic) to ensure data accuracy.
-4.  **Privacy First**: Minimal PII retention. AI is used as a *processor*, not a storage engine.
+> An AI-powered backend that continuously monitors your Gmail inbox, detects invoices, manages inventory stock levels, and automates purchase approvals — end to end, with minimal human intervention.
 
 ---
 
 ## ✨ Features
 
-### 🎯 Core Functionality
-- ✅ **Automated Email Monitoring** - Gmail OAuth integration with spam detection
-- ✅ **AI Invoice Extraction** - Multi-model support (Gemini, OpenAI, Ollama)
-- ✅ **Autonomous Vendor Matching** - Intelligent matching with confidence scoring
-- ✅ **Smart Inventory Management** - Real-time stock alerts and auto-reordering
-- ✅ **Approval Workflows** - Email/SMS notifications with secure token-based approval
-- ✅ **Background Agent** - Autonomous processing with adaptive polling
+### 🧠 AI-Powered Invoice Detection
+- **LangChain + Gemini 1.5 Flash** classifies every email as invoice or not (temperature=0.0, max_tokens=512)
+- Extracts: vendor name, amount, invoice number, dates, currency — structured JSON output
+- **PDF attachment parsing** via `pdfplumber` (first 5 pages)
+- Confidence score on every result
 
-### 🔒 Security & Safety
-- ✅ API Key Authentication on all endpoints
-- ✅ Prompt Injection Detection (20+ attack patterns)
-- ✅ AI Output Validation with confidence thresholds
-- ✅ Environment variable validation on startup
-- ✅ Comprehensive error handling framework
+### 📬 Gmail Inbox Agent
+- Background agent polls **Inbox + Spam** every 60 seconds (configurable via `GMAIL_POLL_INTERVAL`)
+- **Auto OAuth token refresh** — no manual re-auth needed
+- Smart deduplication: by Gmail message ID *and* by subject+sender (catches forwarded emails)
+- All discovered invoices stored in `gmail_invoices` DB table with full audit trail
+
+### 📦 Inventory Agent
+- Monitors stock levels every 30 seconds against configurable thresholds
+- Triggers low-stock alerts automatically
+- Sends approval request to owner via **Email + SMS + WhatsApp** (Twilio)
+
+### ✅ Approval Workflow
+- Owner receives an email with a one-click Approve link
+- On approval → purchase order email sent automatically to supplier
+- Confirmation email sent back to owner
+- Full audit trail logged per invoice
+
+### 📊 Analytics Dashboard
+- Spend by vendor with progress bars
+- Approval rate, total approved spend, weekly invoice volume
+- Real-time agent health status (Gmail agent + Inventory agent)
+- 🧪 Test Invoice button to inject fake invoices for E2E testing
+
+### 🛡️ Security
+- Google OAuth2 login (session-based)
+- API key authentication on all endpoints
+- Rate limiting via `slowapi` (5 req/min on sensitive endpoints)
+- Configurable allowed users list
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture
 
-### Backend
-- **Framework:** FastAPI 0.115+
-- **Language:** Python 3.13
-- **Database:** SQLite (SQLAlchemy ORM)
-- **API Docs:** Swagger/OpenAPI auto-generated
-
-### AI & Integrations
-<<<<<<< HEAD
-- **Primary AI:** Google Gemini 1.5 Pro/Flash
-- **Fallback AI:** OpenAI GPT-4o
-- **Optional:** Ollama (local models)
-=======
-- **Primary AI:** Google Gemini 2.0 Flash (via OpenRouter)
-- **Fallback AI:** Google Gemini 2.5 Flash Preview
->>>>>>> origin/main
-- **Email:** Gmail API with OAuth2
-- **Notifications:** Twilio SMS
-- **Monitoring:** Prometheus + Sentry
-
-### DevOps
-- **Containerization:** Docker + docker-compose
-- **CI/CD:** GitHub Actions
-- **Deployment:** Render/Railway ready
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FastAPI Application                       │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ Gmail Agent  │  │  Inventory   │  │  Procurement     │  │
+│  │ (60s poll)   │  │  Agent       │  │  Agent (Matcher) │  │
+│  │              │  │  (30s poll)  │  │                  │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────────┘  │
+│         │                 │                                  │
+│  ┌──────▼─────────────────▼──────────────────────────────┐  │
+│  │              SQLite Database                           │  │
+│  │  gmail_invoices │ inventory │ alerts │ vendors │ users │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  LangChain + Gemini 1.5 Flash (AI Brain)            │    │
+│  │  temp=0.0  max_tokens=512  structured_output=True   │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.13+
-- Google Cloud Console project (for Gemini & Gmail API)
-- Optional: OpenAI API key, Twilio account
-
-### Installation
-
+### 1. Clone & Install
 ```bash
-# Clone repository
-<<<<<<< HEAD
-git clone https://github.com/ATR1285/Procure.git
-cd Procure
-
-# Install dependencies
+git clone https://github.com/your-repo/procure-iq.git
 cd procure_iq_backend
-=======
-git clone https://github.com/ATR1285/Procure-IQ.git
-cd Procure-IQ
-
-# Install dependencies
->>>>>>> origin/main
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
 ```
 
-<<<<<<< HEAD
-### Run the Server
-
+### 2. Configure Environment
+Copy `.env.example` to `.env` and fill in your credentials:
 ```bash
-# Development
-python procure_iq_backend/run.py
+cp .env.example .env
 ```
-Server runs on `http://localhost:8888`
-=======
-### Run the Server (with UI)
 
+### 3. Set Up Gmail OAuth
+Run the one-time auth setup to get your refresh token:
+```bash
+python gmail_auth_setup.py
+```
+Copy the `GMAIL_REFRESH_TOKEN` printed to your `.env`.
+
+### 4. Run the Server
 ```bash
 python run.py
 ```
-Server runs on `http://localhost:8000`
+Open **http://localhost:8888** — agents start automatically.
 
 ---
 
-## 🤖 Run Agent Without UI (Standalone Autonomy)
+## ⚙️ Environment Variables
 
-The agent can run **completely independently** of the web UI:
-
-```bash
-# Start the autonomous agent (no UI needed)
-python agent_runner.py
-```
-
-### Prove Autonomy
-In a **separate terminal**, insert an event:
-```bash
-python -c "
-import sys; sys.path.insert(0, '.')
-from app.database import SessionLocal
-from app import models
-db = SessionLocal()
-e = models.Event(
-    event_type='INVOICE_RECEIVED',
-    payload={'invoiceNumber': 'INV-TEST-001', 'vendorName': 'Acme Corp', 'invoiceAmount': 1500.00},
-    status='PENDING'
-)
-db.add(e); db.commit()
-print(f'Event {e.id} created.')
-"
-```
-
-Watch the agent logs — the invoice is processed **automatically, no UI interaction**.
-
----
-
-## 🧠 Observe Learning
-
-Learning is automatic and persists across restarts:
-
-1. **First invoice** from "Acme Corp" → AI matches to "Acme Industries" at ~60% confidence
-2. **Human approves** → system auto-learns alias: `"Acme Corp" → "Acme Industries"`
-3. **Second invoice** from "Acme Corp" → alias hits instantly → **100% confidence**
-
-Logs to watch:
-```
-[LEARNING] Learning alias: 'Acme Corp' → 'Acme Industries' (vendor_id=1)
-[LEARNING] Alias applied: 'Acme Corp' → vendor_id=1, confidence improved to 100%
-```
-
-All alias data is stored in the `vendor_aliases` table and survives restarts.
-
----
-
-## ⚡ How Real-Time Updates Work
-
-### Single Source of Truth
-The SQLite database (WAL mode) is the **only** shared state. Components never cache or mirror data.
-
-### Event Lifecycle
-```
-PENDING → PROCESSING → DONE/FAILED
-```
-- **UI/API inserts event** → status = `PENDING`, committed immediately
-- **Agent polls** → sees `PENDING`, sets status = `PROCESSING` (lock) 
-- **Agent completes** → sets status = `DONE`, commits immediately
-- **UI polls** (every 5s) → reads latest DB state, shows updated invoice
-
-### Simultaneous Visibility
-| Writer | Reader | How |
+| Variable | Required | Description |
 |---|---|---|
-| UI creates event | Agent sees it | Fresh session per poll cycle |
-| Agent updates invoice | UI shows it | UI polls `/api/invoices` every 5s |
-| Human approves | Learning persists | Alias stored via `erp_adapter.store_vendor_alias()` |
-
-### Concurrency Safety
-- Fresh DB session per operation (no stale reads)
-- Event locking prevents double-processing
-- WAL mode enables concurrent readers + one writer
->>>>>>> origin/main
-
----
-
-## 📚 Key Endpoints
-
-### Public
-- `GET /` - API landing page
-- `GET /docs` - Swagger UI documentation
-- `GET /metrics` - Prometheus metrics
-
-### Protected (Requires `X-API-Key` header)
-- `GET /api/invoices` - List all invoices
-- `POST /api/invoices/simulate` - Simulate invoice processing
-- `GET /api/ai-health` - AI services health check
-- `GET /api/system/status` - System configuration
-- `GET /api/analytics/dashboard` - Analytics data
-
-### Approval Flow (Token-based)
-- `GET /api/approve/{token}` - Approve invoice/order
-- `GET /api/reject/{token}` - Reject invoice/order
+| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
+| `GMAIL_CLIENT_ID` | ✅ | Gmail OAuth client ID |
+| `GMAIL_CLIENT_SECRET` | ✅ | Gmail OAuth client secret |
+| `GMAIL_REFRESH_TOKEN` | ✅ | Gmail OAuth refresh token |
+| `GOOGLE_CLIENT_ID` | ✅ | Google Sign-In client ID |
+| `GOOGLE_CLIENT_SECRET` | ✅ | Google Sign-In client secret |
+| `SECRET_KEY` | ✅ | Session encryption key |
+| `API_KEY` | ✅ | API authentication key |
+| `OWNER_EMAIL` | ✅ | Owner email for alerts |
+| `OWNER_PHONE` | ⭐ | Owner phone for SMS/WhatsApp (E.164 format, e.g. `+919894488506`) |
+| `SUPPLIER_EMAIL` | ⭐ | Default supplier email |
+| `TWILIO_ACCOUNT_SID` | ⭐ | Twilio account SID (for SMS/WhatsApp) |
+| `TWILIO_AUTH_TOKEN` | ⭐ | Twilio auth token |
+| `TWILIO_FROM_NUMBER` | ⭐ | Twilio phone number |
+| `GMAIL_POLL_INTERVAL` | — | Seconds between inbox scans (default: `60`) |
+| `INVOICE_APPROVAL_THRESHOLD` | — | Invoice amount requiring human approval (default: `1000`) |
+| `DATABASE_URL` | — | Database URL (default: `sqlite:///./procure_iq.db`) |
+| `PORT` | — | Server port (default: `8888`) |
 
 ---
 
-## 🏗️ Project Structure
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Dashboard (protected) |
+| `GET` | `/settings` | Settings page |
+| `GET` | `/api/gmail-invoices` | List AI-detected Gmail invoices |
+| `PATCH` | `/api/gmail-invoices/{id}/status` | Approve or reject an invoice |
+| `GET` | `/api/analytics` | Spend analytics (vendor breakdown, rates) |
+| `GET` | `/api/agent-status` | Live health of all background agents |
+| `POST` | `/api/test/inject-invoice` | Inject a test invoice (rate limited: 5/min) |
+| `GET` | `/api/inventory` | Current inventory levels |
+| `GET` | `/api/alerts` | Active low-stock alerts |
+| `POST` | `/api/owner/approve-refill/{id}` | Approve a restock order |
+| `GET` | `/api/erp/current` | Current ERP connection status |
+| `GET` | `/api/ai-status` | AI engine status |
+| `GET` | `/auth/login` | Google OAuth login |
+| `GET` | `/auth/callback` | OAuth callback |
+| `GET` | `/metrics` | Prometheus metrics |
+
+---
+
+## 🗂️ Project Structure
 
 ```
-<<<<<<< HEAD
 procure_iq_backend/
 ├── app/
-│   ├── agent/              # AI client, memory, inventory manager
-│   ├── api/                # FastAPI routes
+│   ├── agent/
+│   │   ├── ai_client.py        # Gemini + GPT-4o AI brain
+│   │   ├── matcher.py          # Vendor matching & invoice validation
+│   │   ├── inventory_manager.py
+│   │   └── worker.py           # Inventory agent loop
+│   ├── api/
+│   │   ├── approval_routes.py  # Owner approval endpoints
 │   │   ├── invoices.py
-│   │   ├── simulation.py
-│   │   ├── approval_routes.py
-│   │   └── analytics_routes.py
-│   ├── services/           # Email, SMS, ERP integrations
-│   ├── validators/         # AI safety & validation
-│   ├── middleware/         # Monitoring, security
-│   ├── models.py           # SQLAlchemy models
-│   ├── schemas.py          # Pydantic schemas
-│   ├── database.py         # DB connection
-│   └── main.py             # FastAPI app
-├── docs/                   # Documentation
-├── config.py               # Environment configuration
-├── gmail_checker.py        # Automated email processor
-├── gmail_auth_setup.py     # OAuth setup script
-=======
-Procure-IQ/
-├── app/
-│   ├── agent/              # AI client, matcher, worker loop
-│   │   ├── ai_client.py    # OpenRouter/Gemini AI integration
-│   │   ├── matcher.py      # Vendor matching via ERP adapter
-│   │   └── worker.py       # Autonomous agent loop
-│   ├── api/                # FastAPI routes
-│   │   ├── invoices.py     # Invoice CRUD + approval + learning
-│   │   ├── simulation.py   # Trigger simulation events
-│   │   └── approval_routes.py
-│   ├── services/           # ERP adapter, email, SMS
-│   │   ├── erp_adapter.py  # ERP abstraction layer
-│   │   └── python_erp.py   # Local SQLite ERP client
-│   ├── validators/         # AI safety & validation
-│   ├── models.py           # SQLAlchemy models (single source)
-│   ├── schemas.py          # Pydantic schemas
-│   ├── database.py         # DB engine (WAL mode, shared)
-│   └── main.py             # FastAPI app + agent thread
-├── agent_runner.py         # Standalone agent (no UI)
-├── config.py               # Environment configuration
-├── gmail_auth_setup.py     # Gmail OAuth setup
->>>>>>> origin/main
-├── run.py                  # Server launcher
-├── requirements.txt        # Dependencies
-├── Dockerfile              # Docker image
-└── docker-compose.yml      # Docker services
+│   │   └── ...
+│   ├── services/
+│   │   ├── ai_extractor.py     # LangChain + Gemini invoice extraction
+│   │   ├── gmail_agent.py      # Background Gmail polling agent (v2)
+│   │   ├── token_refresh.py    # Auto OAuth token refresh
+│   │   ├── alert_service.py    # Email + SMS + WhatsApp alerts
+│   │   └── email_service.py    # Gmail email ingestion
+│   ├── templates/
+│   │   ├── index.html          # Main dashboard
+│   │   └── settings.html       # Settings page
+│   ├── models.py               # SQLAlchemy models
+│   ├── main.py                 # FastAPI app + all routes
+│   ├── auth.py                 # Google OAuth login
+│   └── database.py
+├── gmail_auth_setup.py         # One-time Gmail OAuth setup
+├── config.py                   # Centralized settings
+├── requirements.txt
+├── run.py                      # Server entrypoint
+├── .env.example                # Environment variable template
+├── docker-compose.yml
+└── nixpacks.toml               # Railway deployment config
 ```
+
+---
+
+## 🐳 Docker
+
+```bash
+docker-compose up --build
+```
+
+---
+
+## 🚢 Deploy to Railway
+
+1. Push to GitHub
+2. Connect repo in [Railway](https://railway.app)
+3. Add all environment variables from the table above
+4. Railway auto-detects `nixpacks.toml` — no additional config needed
 
 ---
 
 ## 🧪 Testing
 
+Click the **🧪 Test Invoice** button on the dashboard to inject a fake invoice and verify the full pipeline without needing a real email.
+
+Or via API:
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio
-
-# Run tests
-pytest procure_iq_backend/tests/ -v
+curl -X POST http://localhost:8888/api/test/inject-invoice \
+  -H "X-API-Key: your-api-key"
 ```
-
----
-
-## 🐳 Docker Deployment
-
-```bash
-# Build image
-docker build -t procureiq:latest procure_iq_backend/
-
-# Run with docker-compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-```
-
----
-
-## 📊 Monitoring
-
-### Health Checks
-```bash
-# System status
-<<<<<<< HEAD
-curl -H "X-API-Key: your_key" http://localhost:8888/api/system/status
-
-# AI health
-curl -H "X-API-Key: your_key" http://localhost:8888/api/ai-health
-=======
-curl -H "X-API-Key: your_key" http://localhost:8000/api/system/status
-
-# AI health
-curl -H "X-API-Key: your_key" http://localhost:8000/api/ai-health
->>>>>>> origin/main
-
-# Metrics
-curl http://localhost:8888/metrics
-```
-
-### Logging
-- Application logs: `procure_iq_backend/app.log`
-- Gmail checker logs: `procure_iq_backend/gmail_checker.log`
-- Agent loop: stdout/stderr
-
-## 🤝 Team Collaboration
-
-This project follows hackathon best practices:
-- 4 team member branches (`Akhil`, `Niranjan-SP`, `Visrutha`, `branch-Richard`)
-- Conventional commits (`feat:`, `fix:`, `docs:`, `test:`)
-- Comprehensive documentation
-- Production-ready code
-
-See [COLLABORATION.md](procure_iq_backend/docs/COLLABORATION.md) for guidelines.
 
 ---
 
 ## 📄 License
 
-MIT License - See LICENSE file for details
+MIT

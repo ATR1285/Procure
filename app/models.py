@@ -3,6 +3,33 @@ from sqlalchemy.orm import relationship
 from .database import Base
 import datetime
 
+class User(Base):
+    """
+    Authorized users who can access the system.
+    """
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    name = Column(String)
+    picture = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    last_login = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class AppSetting(Base):
+    """
+    Secure application settings / API credentials stored in the database.
+    Keys are never returned in full via the API — only masked previews.
+    To view plaintext, Google re-authentication is required.
+    """
+    __tablename__ = "app_settings"
+    key = Column(String, primary_key=True, index=True)
+    value = Column(Text, nullable=False)           # Stored as-is (DB file is protected)
+    description = Column(String, nullable=True)    # Human-readable label
+    is_secret = Column(Boolean, default=True)      # If True, mask in UI
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
 class Vendor(Base):
     __tablename__ = "vendors"
     id = Column(Integer, primary_key=True, index=True)
@@ -217,3 +244,26 @@ class ERPConnection(Base):
     last_tested = Column(DateTime, nullable=True)
     test_status = Column(String, default='untested')  # 'success', 'failed', 'untested'
     test_error = Column(Text, nullable=True)
+
+
+class GmailInvoice(Base):
+    """
+    Invoice emails discovered by the background Gmail agent.
+    Scanned from the owner's inbox and spam folders.
+    """
+    __tablename__ = "gmail_invoices"
+    id             = Column(Integer, primary_key=True, index=True)
+    message_id     = Column(String, unique=True, index=True)   # Gmail message ID (dedup)
+    subject        = Column(String, nullable=True)
+    sender         = Column(String, nullable=True)             # From: header
+    vendor_name    = Column(String, nullable=True)             # AI-extracted vendor
+    amount         = Column(Float, default=0.0)                # AI-extracted $ amount
+    invoice_number = Column(String, nullable=True)             # AI-extracted invoice #
+    invoice_date   = Column(String, nullable=True)             # AI-extracted date string
+    confidence     = Column(Float, default=0.0)                # AI confidence 0.0-1.0
+    received_at    = Column(DateTime, default=datetime.datetime.utcnow)
+    found_in_spam  = Column(Boolean, default=False)
+    status         = Column(String, default="PENDING_REVIEW")  # PENDING_REVIEW / APPROVED / REJECTED
+    audit_trail    = Column(JSON, default=list)                # [{t, a, m}] action log
+    created_at     = Column(DateTime, default=datetime.datetime.utcnow)
+

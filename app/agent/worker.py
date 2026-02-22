@@ -22,7 +22,19 @@ from .. import models
 
 logger = logging.getLogger("Agent")
 
+# ── Agent state (readable by /api/agent-status) ───────────────────────────────
+_worker_state = {
+    "status": "starting",
+    "last_run": None,
+    "cycles_today": 0,
+    "last_error": None,
+}
+
+def get_worker_state() -> dict:
+    return dict(_worker_state)
+
 def start_agent_loop():
+
     """
     Autonomous agent loop — single source of truth is the database.
     

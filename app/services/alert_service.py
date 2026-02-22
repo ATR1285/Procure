@@ -158,7 +158,30 @@ async def send_approval_request(db: Session, item: dict, token: str) -> dict:
         except Exception as e:
             logger.error(f"Failed to send SMS: {e}")
 
+    # 3. Send WhatsApp (Twilio WhatsApp sandbox / approved number)
+    if TWILIO_AVAILABLE and settings.TWILIO_ACCOUNT_SID and settings.OWNER_PHONE:
+        try:
+            client = TwilioClient(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            est_cost = item['reorder_quantity'] * item['unit_price']
+            wa_body = (
+                f"📦 *Procure-IQ Low Stock Alert*\n\n"
+                f"*Item:* {item['item_name']}\n"
+                f"*Current Stock:* {item['current_stock']} units\n"
+                f"*Threshold:* {item['threshold']} units\n"
+                f"*Est. Reorder Cost:* ${est_cost:,.2f}\n\n"
+                f"✅ Approve: {approval_link}"
+            )
+            client.messages.create(
+                body=wa_body,
+                from_=f"whatsapp:{settings.TWILIO_FROM_NUMBER}",
+                to=f"whatsapp:{settings.OWNER_PHONE}"
+            )
+            logger.info(f"WhatsApp alert sent for {item['item_name']}")
+        except Exception as e:
+            logger.warning(f"WhatsApp alert failed (non-critical): {e}")
+
     return {"email_sent": email_sent, "sms_sent": sms_sent}
+
 
 
 async def process_stock_alerts(db: Session) -> dict:

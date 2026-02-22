@@ -12,6 +12,7 @@ Usage:
 import os
 import sys
 import json
+import asyncio
 import logging
 import argparse
 import sqlite3
@@ -224,14 +225,16 @@ def process_emails(verbose=False):
         logger.debug("Initializing Gmail API...")
         
         # Fetch emails from inbox and spam
-        logger.debug("Fetching inbox emails...")
-        inbox_emails = email_service.fetch_new_invoices(folder='INBOX')
-        
-        logger.debug("Fetching spam emails...")
-        spam_emails = email_service.fetch_new_invoices(folder='SPAM')
-        
-        all_emails = [(email, False) for email in inbox_emails] + \
-                     [(email, True) for email in spam_emails]
+        # Fetch emails (async service, run synchronously)
+        logger.debug("Fetching emails from Gmail...")
+        try:
+            all_email_items = asyncio.run(email_service.fetch_latest_invoices(max_results=20))
+        except Exception as fetch_err:
+            logger.error(f"Gmail fetch error: {fetch_err}")
+            all_email_items = []
+
+        # Normalise to (email_data, is_spam) tuples
+        all_emails = [(e, False) for e in all_email_items]
         
         stats['total_scanned'] = len(all_emails)
         

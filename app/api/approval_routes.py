@@ -102,7 +102,7 @@ async def get_approval_form(token: str, db: Session = Depends(get_db)):
                 document.getElementById('total_cost').innerText = '$' + total;
             }}
             
-            async def submitOrder() {{
+            async function submitOrder() {{
                 const qty = document.getElementById('quantity').value;
                 const token = "{token}";
                 
@@ -216,7 +216,16 @@ async def confirm_approval(token: str, request: Request, db: Session = Depends(g
     
     # 4. Send Supplier Email
     vendor = db.query(Vendor).filter(Vendor.id == item.supplier_id).first()
-    supplier_email = vendor.email if vendor and vendor.email else settings.SUPPLIER_EMAIL
+    # Priority: AppSetting DB override → vendor.email → settings fallback
+    try:
+        from ..models import AppSetting
+        db_setting = db.query(AppSetting).filter(AppSetting.key == "SUPPLIER_EMAIL").first()
+        supplier_email = (db_setting.value if db_setting and db_setting.value
+                          else (vendor.email if vendor and vendor.email
+                                else settings.SUPPLIER_EMAIL))
+    except Exception:
+        supplier_email = vendor.email if vendor and vendor.email else settings.SUPPLIER_EMAIL
+
     
     supplier_body = f"""
     <html><body>

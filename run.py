@@ -1,9 +1,13 @@
-import uvicorn
-import sys
 import os
+import sys
+import uvicorn
+
+# ⚠️ DEVELOPMENT ONLY: Allow HTTP for OAuth (remove in production with https)
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 from config import settings
 

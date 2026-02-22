@@ -5,11 +5,18 @@ All environment variables and settings are loaded and validated here.
 import os
 from typing import Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from pydantic import Field
 from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()
+
+# Resolve DB path: use Railway persistent volume if available, else local
+_DB_PATH = "/app/data/procure_iq.db" if os.path.isdir("/app/data") else "./procure_iq.db"
+_DEFAULT_DB_URL = f"sqlite:///{_DB_PATH}"
+
+# Use Railway's PORT env var if set, else default 8888 for local dev
+_DEFAULT_PORT = int(os.environ.get("PORT", 8888))
 
 
 class Settings(BaseSettings):
@@ -21,9 +28,9 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     # SERVER CONFIGURATION
     # ═══════════════════════════════════════════
-    PORT: int = Field(default=8000, description="Server port")
+    PORT: int = Field(default=_DEFAULT_PORT, description="Server port")
     API_KEY: Optional[str] = Field(default=None, description="API authentication key")
-    BASE_URL: str = Field(default="http://localhost:8000", description="Base URL for links")
+    BASE_URL: str = Field(default="http://localhost:8888", description="Base URL for links")
     
     # ═══════════════════════════════════════════
     # AI MODELS (v2.0)
@@ -39,6 +46,17 @@ class Settings(BaseSettings):
     GMAIL_CLIENT_ID: Optional[str] = Field(default=None, description="Gmail OAuth client ID")
     GMAIL_CLIENT_SECRET: Optional[str] = Field(default=None, description="Gmail OAuth client secret")
     GMAIL_REFRESH_TOKEN: Optional[str] = Field(default=None, description="Gmail OAuth refresh token")
+    GMAIL_POLL_INTERVAL: int = Field(default=60, description="Seconds between Gmail inbox scans")
+
+    
+    # ═══════════════════════════════════════════
+    # GOOGLE AUTHENTICATION (LOGIN)
+    # ═══════════════════════════════════════════
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google Sign-In Client ID")
+    GOOGLE_CLIENT_SECRET: Optional[str] = Field(default=None, description="Google Sign-In Client Secret")
+    SECRET_KEY: str = Field(default="supersecretkey", description="Session encryption key")
+    ALLOWED_USERS: Optional[str] = Field(default=None, description="Comma-separated list of allowed emails")
+
     
     # ═══════════════════════════════════════════
     # NOTIFICATIONS
@@ -57,7 +75,7 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     # DATABASE
     # ═══════════════════════════════════════════
-    DATABASE_URL: str = Field(default="sqlite:///./procure_iq.db", description="Database connection URL")
+    DATABASE_URL: str = Field(default=_DEFAULT_DB_URL, description="Database connection URL")
     
     # ═══════════════════════════════════════════
     # ERP INTEGRATION (v2.0)

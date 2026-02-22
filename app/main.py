@@ -1,33 +1,50 @@
 """
 Procure-IQ Main Application
-
-Central entry point for the FastAPI backend.
-Integrates security, AI monitoring (Prometheus + Sentry), background workers, 
-and all API modules.
 """
 
 import os
 import sys
+
+# ⚠️ DEV ONLY: allow OAuth over http://localhost
+if os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT"):
+    pass  # Production: HTTPS is automatic
+else:
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
+# Allow Google to return extra previously-granted scopes (e.g. gmail.modify)
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+
 import time
 import secrets
 import threading
 import datetime
 import logging
 
+
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
 # Add parent directory to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import settings
-from . import models, schemas
+from . import models, schemas, auth
 from .database import SessionLocal, engine
 from .models import Base
 from .agent.worker import start_agent_loop
+from .services.gmail_agent import gmail_invoice_agent, agent_state
+from .database import get_db
+import asyncio
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
 
 # --- Monitoring & Error Tracking ---
 import sentry_sdk
@@ -42,19 +59,38 @@ if settings.API_KEY:
         profiles_sample_rate=1.0,
     )
 
+# ── Lifespan: start background agents on startup ─────────────────────────────
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    asyncio.create_task(
+        gmail_invoice_agent(get_db, poll_interval=settings.GMAIL_POLL_INTERVAL)
+    )
+    yield
+
 # --- App Initialization ---
 app = FastAPI(
     title="Procure-IQ API",
     version="2.0.0",
-    description="Intelligent Autonomous Procurement System"
+    description="Intelligent Autonomous Procurement System",
+    lifespan=lifespan
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Prometheus Middleware (Must be before# Prometheus Metrics
+# 1. Prometheus Middleware
 app.add_middleware(PrometheusMiddleware)
 
+# 2. Session Middleware (Required for Google Auth)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=settings.SECRET_KEY,
+    session_cookie="procure_iq_session",
+    max_age=3600 * 24 * 7  # 7 days
+)
 
-
-# CORS Middleware
+# 3. CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -68,20 +104,74 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-@app.get("/")
+# --- Authentication Dependencies ---
+
+async def verify_google_auth(request: Request):
+    """Dependency: Ensure user is logged in via Google."""
+    user = request.session.get("user")
+    if not user:
+        if "text/html" in request.headers.get("accept", ""):
+            # If browser request, redirect to login
+            raise HTTPException(status_code=307, detail="Redirecting to login") 
+        else:
+             # If API request, 401
+             raise HTTPException(status_code=401, detail="Authentication required")
+    return user
+
+async def verify_api_key_or_google(request: Request, x_api_key: str = Header(None)):
+    """Allow access via EITHER Google Auth (Browser) OR API Key (Devices)."""
+    # 1. Check Google Session
+    user = request.session.get("user")
+    if user:
+        return {"type": "user", "data": user}
+    
+    # 2. Check API Key
+    if x_api_key and x_api_key == settings.API_KEY:
+         return {"type": "apikey", "data": "device"}
+    
+    # Fail
+    if "text/html" in request.headers.get("accept", ""):
+        raise HTTPException(status_code=307, detail="Redirecting to login")
+    
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+# --- Global Exception Handler for Redirects ---
+@app.exception_handler(HTTPException)
+async def auth_redirect_wrapper(request: Request, exc: HTTPException):
+    if exc.status_code == 307 and exc.detail == "Redirecting to login":
+        return RedirectResponse("/login")
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+# --- Routes ---
+
+# Public Routes
+@app.get("/login")
+def login_page(request: Request):
+    """Login landing page (public)."""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+app.include_router(auth.router)
+
+# Protected Dashboard Routes
+@app.get("/", dependencies=[Depends(verify_google_auth)])
 def read_root(request: Request):
-    """Landing page."""
+    """Landing page (Protected)."""
+    user = request.session.get("user")
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "api_key": API_KEY
+        "api_key": settings.API_KEY, # Pass to frontend for JS calls
+        "user": user
     })
 
-@app.get("/settings")
+@app.get("/settings", dependencies=[Depends(verify_google_auth)])
 def settings_page(request: Request):
-    """ERP Connection Settings page."""
+    """Settings page (Protected)."""
+    user = request.session.get("user")
     return templates.TemplateResponse("settings.html", {
         "request": request,
-        "api_key": API_KEY
+        "api_key": settings.API_KEY,
+        "user": user
     })
 
 @app.get("/metrics")
@@ -89,49 +179,178 @@ async def metrics():
     """Prometheus metrics endpoint."""
     return get_metrics()
 
+# ── Gmail Invoice Agent API ───────────────────────────────────────────────────
+
+@app.get("/api/gmail-invoices")
+def list_gmail_invoices(limit: int = 50, db: Session = Depends(get_db)):
+    """Return the most recent invoices detected from the owner's Gmail."""
+    from .models import GmailInvoice
+    invoices = (
+        db.query(GmailInvoice)
+        .order_by(GmailInvoice.received_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": inv.id,
+            "subject": inv.subject,
+            "sender": inv.sender,
+            "amount": inv.amount,
+            "invoice_number": inv.invoice_number,
+            "received_at": inv.received_at.isoformat() if inv.received_at else None,
+            "found_in_spam": inv.found_in_spam,
+            "status": inv.status,
+        }
+        for inv in invoices
+    ]
+
+@app.patch("/api/gmail-invoices/{invoice_id}/status")
+def update_gmail_invoice_status(invoice_id: int, body: dict, db: Session = Depends(get_db)):
+    """Approve or reject a Gmail-detected invoice."""
+    from .models import GmailInvoice
+    inv = db.query(GmailInvoice).filter(GmailInvoice.id == invoice_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    new_status = body.get("status", "").upper()
+    if new_status not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="status must be APPROVED or REJECTED")
+    inv.status = new_status
+    # Write audit trail entry
+    trail = list(inv.audit_trail or [])
+    trail.append({
+        "t": datetime.datetime.utcnow().isoformat(),
+        "a": new_status.lower(),
+        "m": f"Manually marked {new_status} via dashboard"
+    })
+    inv.audit_trail = trail
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(inv, "audit_trail")
+    db.commit()
+    return {"success": True, "id": invoice_id, "status": inv.status}
+
+
+# ── Agent Status ──────────────────────────────────────────────────────────────
+
+@app.get("/api/agent-status")
+def get_agent_status():
+    """Return current state of all background agents."""
+    from .agent.worker import get_worker_state  # imported lazily
+    try:
+        worker = get_worker_state()
+    except Exception:
+        worker = {"status": "unknown"}
+    return {
+        "gmail_agent": agent_state,
+        "inventory_agent": worker,
+    }
+
+
+# ── Analytics ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/analytics")
+def get_analytics(db: Session = Depends(get_db)):
+    """Spend analytics: vendor breakdown, approval rates, invoice counts."""
+    from .models import GmailInvoice
+    from sqlalchemy import func
+    import datetime as dt
+
+    invoices = db.query(GmailInvoice).all()
+    total = len(invoices)
+    approved = sum(1 for i in invoices if i.status == "APPROVED")
+    rejected  = sum(1 for i in invoices if i.status == "REJECTED")
+    pending   = sum(1 for i in invoices if i.status == "PENDING_REVIEW")
+    total_spend = sum(i.amount or 0 for i in invoices if i.status == "APPROVED")
+
+    # Spend by vendor
+    vendor_spend: dict = {}
+    for inv in invoices:
+        key = inv.vendor_name or inv.sender or "Unknown"
+        vendor_spend[key] = vendor_spend.get(key, 0) + (inv.amount or 0)
+    top_vendors = sorted(vendor_spend.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    # Last 7 days volume
+    week_ago = dt.datetime.utcnow() - dt.timedelta(days=7)
+    weekly = sum(1 for i in invoices if i.received_at and i.received_at >= week_ago)
+
+    return {
+        "total_invoices": total,
+        "approved": approved,
+        "rejected": rejected,
+        "pending": pending,
+        "total_approved_spend": round(total_spend, 2),
+        "approval_rate": round(approved / total * 100, 1) if total else 0,
+        "invoices_last_7_days": weekly,
+        "top_vendors": [{"vendor": k, "spend": round(v, 2)} for k, v in top_vendors],
+    }
+
+
+# ── Test Mode ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/test/inject-invoice")
+@limiter.limit("5/minute")
+async def inject_test_invoice(request: Request, db: Session = Depends(get_db)):
+    """
+    Test mode: inject a fake invoice into the gmail_invoices table
+    to verify the full end-to-end pipeline without needing a real email.
+    """
+    import random, string
+    from .models import GmailInvoice
+    rand_id = "TEST-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    fake = GmailInvoice(
+        message_id=rand_id,
+        subject=f"Invoice #{rand_id} from Test Supplier",
+        sender="test-supplier@example.com",
+        vendor_name="Test Supplier Ltd",
+        amount=round(random.uniform(100, 5000), 2),
+        invoice_number=rand_id,
+        invoice_date=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+        confidence=0.99,
+        received_at=datetime.datetime.utcnow(),
+        found_in_spam=False,
+        status="PENDING_REVIEW",
+        audit_trail=[{
+            "t": datetime.datetime.utcnow().isoformat(),
+            "a": "injected",
+            "m": "Injected by test mode — not a real email"
+        }],
+    )
+    db.add(fake)
+    db.commit()
+    db.refresh(fake)
+    return {"success": True, "invoice_id": fake.id, "message_id": rand_id,
+            "amount": fake.amount, "note": "Test invoice injected successfully"}
+
+
 # --- Database & Security ---
 models.Base.metadata.create_all(bind=engine)
 
-# API Key Authentication Logic
-API_KEY = settings.API_KEY
-if not API_KEY:
+# API Key Logic (for server logs)
+if not settings.API_KEY:
     import secrets
-    API_KEY = secrets.token_urlsafe(32)
-    print(f"\n[WARNING] No API_KEY set in .env - Generated random key:")
-    print(f"[KEY] API Key: {API_KEY}")
-    print(f"[SETTINGS] Add this to your .env file: API_KEY={API_KEY}\n")
-else:
-    print(f"[INFO] API authentication enabled. Key begins with: {API_KEY[:4]}...")
-
-
-def verify_api_key(x_api_key: str = Header(None)):
-    """Dependency for API key verification."""
-    # Debug print for identifying auth issues
-    print(f"DEBUG AUTH: Received header='{x_api_key}', Expected='{API_KEY}'")
-    if x_api_key != API_KEY:
-        print(f"AUTH FAILED: Mismatch between {x_api_key} and {API_KEY}")
-        raise HTTPException(
-            status_code=401,
-            detail=f"Invalid or missing API key. Include X-API-Key header."
-        )
-    return x_api_key
-
-
+    settings.API_KEY = secrets.token_urlsafe(32)
+    print(f"\n[WARNING] No API_KEY set in .env - Generated random key: {settings.API_KEY}")
 
 # --- Event Handlers ---
 @app.on_event("startup")
 async def startup_event():
-    # Start the autonomous agent loop in a separate thread
+    # Print config summary
+    settings.print_startup_summary()
+    
+    # Start agent
+    # The instruction "change include_granted_scopes to false in auth.py login flow"
+    # refers to a change in auth.py, not main.py.
+    # The provided code snippet for main.py's startup_event seems to be a misplacement
+    # of auth.py logic and would cause a NameError for 'flow'.
+    # Therefore, this line is not added to maintain syntactical correctness of main.py.
     threading.Thread(target=start_agent_loop, daemon=True).start()
 
 # --- API Routes ---
 
-
-# AI Health Check
-
-@app.get("/api/ai-health", dependencies=[Depends(verify_api_key)])
+# AI Health Check (Protected)
+@app.get("/api/ai-health", dependencies=[Depends(verify_api_key_or_google)])
 async def ai_health_check():
-    """AI health and metrics (authenticated)."""
+    """AI health and metrics."""
     from .agent.ai_client import get_ai_client
     client = get_ai_client()
     health = await client.health_check()
@@ -141,7 +360,7 @@ async def ai_health_check():
         "timestamp": datetime.datetime.now().isoformat()
     }
 
-@app.get("/api/ai-status")
+@app.get("/api/ai-status", dependencies=[Depends(verify_api_key_or_google)])
 async def ai_status():
     """Public endpoint returning current AI provider for dashboard badge."""
     from .agent.ai_client import get_ai_client
@@ -173,24 +392,25 @@ async def ai_status():
 
 # --- Include Modules ---
 from .api import invoices, simulation, owner_actions, approval_routes, analytics_routes, erp_management
+from .api import credentials_routes
 
-app.include_router(invoices.router, prefix="/api", dependencies=[Depends(verify_api_key)])
-app.include_router(simulation.router, prefix="/api", dependencies=[Depends(verify_api_key)])
-app.include_router(owner_actions.router, dependencies=[Depends(verify_api_key)])
-app.include_router(analytics_routes.router, dependencies=[Depends(verify_api_key)])
+# Protect API routes with dual auth (Key OR Session)
+app.include_router(invoices.router, prefix="/api", dependencies=[Depends(verify_api_key_or_google)])
+app.include_router(simulation.router, prefix="/api", dependencies=[Depends(verify_api_key_or_google)])
+app.include_router(owner_actions.router, dependencies=[Depends(verify_api_key_or_google)])
+app.include_router(analytics_routes.router, dependencies=[Depends(verify_api_key_or_google)])
+app.include_router(erp_management.router, dependencies=[Depends(verify_api_key_or_google)])
 
-# ERP Management Routes
-app.include_router(erp_management.router, dependencies=[Depends(verify_api_key)])
+# Credential management (auth checked inside each route)
+app.include_router(credentials_routes.router)
 
-# Public Approval Routes (Token-based)
+# Public Token-based Approval Routes (No Auth required as they use secure tokens)
 app.include_router(approval_routes.router, prefix="/api", tags=["approvals"])
 
 # --- Database Seeding ---
 def seed_inventory():
     db = SessionLocal()
-    # Check if we need to re-seed due to schema changes or empty table
     if db.query(models.InventoryItem).count() < 5:
-        # Clear existing items to ensure branding is applied
         db.query(models.InventoryItem).delete()
         items = [
             models.InventoryItem(name="MacBook Pro M3", brand="Apple", quantity=45, reorder_threshold=50, reorder_quantity=10, unit_price=1999.0, sku="APL-MBP-M3"),
@@ -205,7 +425,7 @@ def seed_inventory():
 
 seed_inventory()
 
-# Seed ERP data (vendors, POs, receipts)
+# Seed ERP data
 from .init_db import seed_erp_data
 try:
     _db = SessionLocal()
@@ -213,3 +433,4 @@ try:
     _db.close()
 except Exception as e:
     print(f"[WARN] ERP seed: {e}")
+
