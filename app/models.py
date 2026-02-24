@@ -121,22 +121,46 @@ class Event(Base):
 
 class InventoryItem(Base):
     """
-    Inventory items with stock tracking and reorder management.
-    
-    Renamed from 'Inventory' for clarity and added reorder fields
-    for automated stock alert system.
+    ERP-style inventory items with full stock tracking and reorder management.
     """
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)  # Renamed from item_name for consistency
-    brand = Column(String, nullable=True) # Added for v2.0 premium display
-    quantity = Column(Integer, default=0)
-    reorder_threshold = Column(Integer, default=10)  # Renamed from limit_threshold
-    reorder_quantity = Column(Integer, default=50)  # How many to reorder
-    supplier_id = Column(Integer, ForeignKey("vendors.id"))
-    last_checked = Column(DateTime, default=datetime.datetime.utcnow)
-    unit_price = Column(Float, default=0.0)  # For cost tracking
-    sku = Column(String, nullable=True)  # Stock Keeping Unit
+    sku = Column(String, unique=True, index=True)
+    product_name = Column(String, index=True)
+    category = Column(String, index=True, nullable=True)
+    brand = Column(String, nullable=True)
+    supplier = Column(String, nullable=True)
+    supplier_id = Column(Integer, ForeignKey("vendors.id"), nullable=True)
+    stock_quantity = Column(Integer, default=0)
+    reorder_level = Column(Integer, default=10)
+    reorder_quantity = Column(Integer, default=50)
+    cost_price = Column(Float, default=0.0)
+    selling_price = Column(Float, default=0.0)
+    warehouse_location = Column(String, nullable=True)
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String, default="In Stock")  # In Stock / Low Stock / Out of Stock
+
+    # Backward-compatible aliases for existing agent code
+    @property
+    def name(self):
+        return self.product_name
+
+    @property
+    def quantity(self):
+        return self.stock_quantity
+
+    @property
+    def reorder_threshold(self):
+        return self.reorder_level
+
+    @property
+    def unit_price(self):
+        return self.cost_price
+
+    @property
+    def last_checked(self):
+        return self.last_updated
+
 
 class AlertLog(Base):
     """

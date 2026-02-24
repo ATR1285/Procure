@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
 from ..database import SessionLocal
 from .. import models, schemas
 from ..services.notifications import send_email_to_supplier
@@ -15,8 +16,56 @@ def get_db():
         db.close()
 
 @router.get("/api/inventory")
-def get_inventory(db: Session = Depends(get_db)):
-    return db.query(models.InventoryItem).all()
+def get_inventory(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: str = Query("", description="Search by SKU or product name"),
+    category: str = Query("", description="Filter by category"),
+    status: str = Query("", description="Filter by status"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.InventoryItem)
+
+    if search:
+        term = f"%{search}%"
+        q = q.filter(or_(
+            models.InventoryItem.sku.ilike(term),
+            models.InventoryItem.product_name.ilike(term),
+        ))
+    if category:
+        q = q.filter(models.InventoryItem.category == category)
+    if status:
+        q = q.filter(models.InventoryItem.status == status)
+
+    total = q.count()
+    items = q.order_by(models.InventoryItem.sku).offset((page - 1) * page_size).limit(page_size).all()
+
+    return {
+        "items": [
+            {
+                "id": i.id, "sku": i.sku, "product_name": i.product_name,
+                "category": i.category, "brand": i.brand, "supplier": i.supplier,
+                "stock_quantity": i.stock_quantity, "reorder_level": i.reorder_level,
+                "cost_price": i.cost_price, "selling_price": i.selling_price,
+                "warehouse_location": i.warehouse_location,
+                "last_updated": i.last_updated.isoformat() if i.last_updated else None,
+                "status": i.status,
+            }
+            for i in items
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+@router.get("/api/inventory/summary")
+def get_inventory_summary(db: Session = Depends(get_db)):
+    total = db.query(func.count(models.InventoryItem.id)).scalar() or 0
+    low = db.query(func.count(models.InventoryItem.id)).filter(models.InventoryItem.status == "Low Stock").scalar() or 0
+    oos = db.query(func.count(models.InventoryItem.id)).filter(models.InventoryItem.status == "Out of Stock").scalar() or 0
+    total_value = db.query(func.sum(models.InventoryItem.cost_price * models.InventoryItem.stock_quantity)).scalar() or 0
+    return {"total": total, "low_stock": low, "out_of_stock": oos, "total_value": round(total_value, 2)}
+
 
 @router.post("/api/owner/approve-refill/{event_id}")
 def approve_refill(event_id: int, db: Session = Depends(get_db)):

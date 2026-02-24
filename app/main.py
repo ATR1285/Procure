@@ -174,6 +174,16 @@ def settings_page(request: Request):
         "user": user
     })
 
+@app.get("/inventory", dependencies=[Depends(verify_google_auth)])
+def inventory_page(request: Request):
+    """ERP-style Inventory Management page (Protected)."""
+    user = request.session.get("user")
+    return templates.TemplateResponse("inventory.html", {
+        "request": request,
+        "api_key": settings.API_KEY,
+        "user": user
+    })
+
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
@@ -285,43 +295,6 @@ def get_analytics(db: Session = Depends(get_db)):
     }
 
 
-# ── Test Mode ─────────────────────────────────────────────────────────────────
-
-@app.post("/api/test/inject-invoice")
-@limiter.limit("5/minute")
-async def inject_test_invoice(request: Request, db: Session = Depends(get_db)):
-    """
-    Test mode: inject a fake invoice into the gmail_invoices table
-    to verify the full end-to-end pipeline without needing a real email.
-    """
-    import random, string
-    from .models import GmailInvoice
-    rand_id = "TEST-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    fake = GmailInvoice(
-        message_id=rand_id,
-        subject=f"Invoice #{rand_id} from Test Supplier",
-        sender="test-supplier@example.com",
-        vendor_name="Test Supplier Ltd",
-        amount=round(random.uniform(100, 5000), 2),
-        invoice_number=rand_id,
-        invoice_date=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
-        confidence=0.99,
-        received_at=datetime.datetime.utcnow(),
-        found_in_spam=False,
-        status="PENDING_REVIEW",
-        audit_trail=[{
-            "t": datetime.datetime.utcnow().isoformat(),
-            "a": "injected",
-            "m": "Injected by test mode — not a real email"
-        }],
-    )
-    db.add(fake)
-    db.commit()
-    db.refresh(fake)
-    return {"success": True, "invoice_id": fake.id, "message_id": rand_id,
-            "amount": fake.amount, "note": "Test invoice injected successfully"}
-
-
 # --- Database & Security ---
 models.Base.metadata.create_all(bind=engine)
 
@@ -391,12 +364,11 @@ async def ai_status():
     }
 
 # --- Include Modules ---
-from .api import invoices, simulation, owner_actions, approval_routes, analytics_routes, erp_management
+from .api import invoices, owner_actions, approval_routes, analytics_routes, erp_management
 from .api import credentials_routes
 
 # Protect API routes with dual auth (Key OR Session)
 app.include_router(invoices.router, prefix="/api", dependencies=[Depends(verify_api_key_or_google)])
-app.include_router(simulation.router, prefix="/api", dependencies=[Depends(verify_api_key_or_google)])
 app.include_router(owner_actions.router, dependencies=[Depends(verify_api_key_or_google)])
 app.include_router(analytics_routes.router, dependencies=[Depends(verify_api_key_or_google)])
 app.include_router(erp_management.router, dependencies=[Depends(verify_api_key_or_google)])

@@ -50,8 +50,3 @@ class Event(EventBase):
 
     class Config:
         from_attributes = True
-
-class SimulationTrigger(BaseModel):
-    vendorName: str
-    invoiceAmount: float
-    invoiceNumber: str
