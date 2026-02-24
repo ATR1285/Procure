@@ -15,6 +15,22 @@ def get_db():
     finally:
         db.close()
 
+
+@router.get("/api/system-state")
+def get_system_state(db: Session = Depends(get_db)):
+    """Decision Intelligence Layer — read-only system state."""
+    row = db.query(models.SystemState).first()
+    if not row:
+        row = models.SystemState(current_mode="DEBATE", severity_score=0)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return {
+        "current_mode": row.current_mode,
+        "severity_score": row.severity_score,
+        "last_updated": row.last_updated.isoformat() if row.last_updated else None,
+    }
+
 @router.get("/api/inventory")
 def get_inventory(
     page: int = Query(1, ge=1),

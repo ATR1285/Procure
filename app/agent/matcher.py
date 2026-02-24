@@ -192,6 +192,19 @@ def process_invoice_match(db: Session, payload: dict):
     invoice.confidence_score = match_score
     invoice.reasoning_note = reasoning
     invoice.vendor_id = target_vendor_id
+
+    # ── Safe Mode Override (Decision Intelligence Layer) ────────
+    try:
+        sys_state = db.query(models.SystemState).first()
+        if sys_state and sys_state.current_mode == "SAFE":
+            invoice.status = "MANUAL_REVIEW"
+            invoice.audit_trail.append({
+                "t": "safe_mode",
+                "m": "Safe Mode Activated — Low AI Confidence. Invoice forced to manual review."
+            })
+            logger.info(f"[SAFE-MODE] Invoice {invoice_number} forced to MANUAL_REVIEW")
+    except Exception as sm_err:
+        logger.error(f"[SAFE-MODE] Check error (non-fatal): {sm_err}")
     
     invoice.audit_trail.append({
         "t": "match_attempt", 

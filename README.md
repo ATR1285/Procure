@@ -1,7 +1,7 @@
 # Procure-IQ 🤖
-### Intelligent Autonomous Procurement System
+### Autonomous Procurement + Decision Intelligence Engine
 
-> An AI-powered backend that continuously monitors your Gmail inbox, detects invoices, manages inventory stock levels, and automates purchase approvals — end to end, with minimal human intervention.
+> An AI-powered system that monitors your Gmail inbox, detects invoices, manages inventory, automates purchase approvals, and provides real-time decision intelligence with system operating modes — end to end, with minimal human intervention.
 
 ---
 
@@ -19,10 +19,20 @@
 - Smart deduplication: by Gmail message ID *and* by subject+sender (catches forwarded emails)
 - All discovered invoices stored in `gmail_invoices` DB table with full audit trail
 
-### 📦 Inventory Agent
-- Monitors stock levels every 30 seconds against configurable thresholds
-- Triggers low-stock alerts automatically
+### 📦 Dedicated Inventory Management
+- **ERP-style Inventory Page** (`/inventory`) with 100+ seeded items across 6 categories
+- Summary cards: Total Products, Low Stock, Out of Stock, Inventory Value (INR)
+- Real-time search by SKU or product name
+- Category & status filters with paginated data table
+- Stock monitoring agent triggers low-stock alerts automatically
 - Sends approval request to owner via **Email + SMS + WhatsApp** (Twilio)
+
+### 🎯 Decision Intelligence Layer
+- **System Operating Modes**: Debate (normal), Crisis (high severity), Safe (low AI confidence)
+- **Severity Scoring Engine** (0–10) based on stock levels, supplier status, and AI confidence
+- **Safe Mode**: Automatically forces invoices to `MANUAL_REVIEW` when AI confidence drops below 60%
+- **Real-time Dashboard Bar**: Color-coded mode indicator with severity gauge
+- Pure extension layer — removable without affecting core system
 
 ### ✅ Approval Workflow
 - Owner receives an email with a one-click Approve link
@@ -34,6 +44,8 @@
 - Spend by vendor with progress bars
 - Approval rate, total approved spend, weekly invoice volume
 - Real-time agent health status (Gmail agent + Inventory agent)
+- Decision Intelligence bar with mode subtitle, color-scaled severity (green/orange/red), and "Normal Operations" baseline
+- Polished empty states: invoice scanner with last-scan timestamp, "No invoice data yet" analytics captions
 - 🧪 Test Invoice button to inject fake invoices for E2E testing
 
 ### 🛡️ Security
@@ -54,12 +66,18 @@
 │  │ Gmail Agent  │  │  Inventory   │  │  Procurement     │  │
 │  │ (60s poll)   │  │  Agent       │  │  Agent (Matcher) │  │
 │  │              │  │  (30s poll)  │  │                  │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────────┘  │
-│         │                 │                                  │
-│  ┌──────▼─────────────────▼──────────────────────────────┐  │
-│  │              SQLite Database                           │  │
-│  │  gmail_invoices │ inventory │ alerts │ vendors │ users │  │
-│  └───────────────────────────────────────────────────────┘  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
+│         │                 │                    │             │
+│  ┌──────▼─────────────────▼────────────────────▼──────────┐ │
+│  │            Decision Intelligence Layer                  │ │
+│  │   Severity Engine → SystemState → Mode (D/C/S)         │ │
+│  └────────────────────────┬───────────────────────────────┘ │
+│                           │                                  │
+│  ┌────────────────────────▼───────────────────────────────┐ │
+│  │              SQLite Database                            │ │
+│  │  gmail_invoices │ inventory │ alerts │ system_state     │ │
+│  │  vendors │ users │ events │ invoices                    │ │
+│  └────────────────────────────────────────────────────────┘ │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  LangChain + Gemini 1.5 Flash (AI Brain)            │    │
@@ -92,7 +110,13 @@ python gmail_auth_setup.py
 ```
 Copy the `GMAIL_REFRESH_TOKEN` printed to your `.env`.
 
-### 4. Run the Server
+### 4. Seed Inventory Data
+```bash
+python seed_inventory.py
+```
+Generates 100+ realistic ERP-style inventory records across 6 categories.
+
+### 5. Run the Server
 ```bash
 python run.py
 ```
@@ -113,7 +137,7 @@ Open **http://localhost:8888** — agents start automatically.
 | `SECRET_KEY` | ✅ | Session encryption key |
 | `API_KEY` | ✅ | API authentication key |
 | `OWNER_EMAIL` | ✅ | Owner email for alerts |
-| `OWNER_PHONE` | ⭐ | Owner phone for SMS/WhatsApp (E.164 format, e.g. `+919894488506`) |
+| `OWNER_PHONE` | ⭐ | Owner phone for SMS/WhatsApp (E.164 format) |
 | `SUPPLIER_EMAIL` | ⭐ | Default supplier email |
 | `TWILIO_ACCOUNT_SID` | ⭐ | Twilio account SID (for SMS/WhatsApp) |
 | `TWILIO_AUTH_TOKEN` | ⭐ | Twilio auth token |
@@ -130,13 +154,16 @@ Open **http://localhost:8888** — agents start automatically.
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/` | Dashboard (protected) |
+| `GET` | `/inventory` | ERP-style Inventory page |
 | `GET` | `/settings` | Settings page |
+| `GET` | `/api/inventory` | Paginated inventory (search, filter, pagination) |
+| `GET` | `/api/inventory/summary` | Inventory summary cards |
+| `GET` | `/api/system-state` | Decision Intelligence state (mode + severity) |
 | `GET` | `/api/gmail-invoices` | List AI-detected Gmail invoices |
 | `PATCH` | `/api/gmail-invoices/{id}/status` | Approve or reject an invoice |
 | `GET` | `/api/analytics` | Spend analytics (vendor breakdown, rates) |
 | `GET` | `/api/agent-status` | Live health of all background agents |
 | `POST` | `/api/test/inject-invoice` | Inject a test invoice (rate limited: 5/min) |
-| `GET` | `/api/inventory` | Current inventory levels |
 | `GET` | `/api/alerts` | Active low-stock alerts |
 | `POST` | `/api/owner/approve-refill/{id}` | Approve a restock order |
 | `GET` | `/api/erp/current` | Current ERP connection status |
@@ -150,38 +177,62 @@ Open **http://localhost:8888** — agents start automatically.
 ## 🗂️ Project Structure
 
 ```
-procure_iq_backend/
+Procure-IQ/
 ├── app/
 │   ├── agent/
-│   │   ├── ai_client.py        # Gemini + GPT-4o AI brain
-│   │   ├── matcher.py          # Vendor matching & invoice validation
-│   │   ├── inventory_manager.py
-│   │   └── worker.py           # Inventory agent loop
+│   │   ├── ai_client.py            # Gemini + GPT-4o AI brain
+│   │   ├── matcher.py              # Vendor matching, 3-way match + Safe Mode
+│   │   ├── inventory_manager.py    # Inventory management logic
+│   │   └── worker.py               # Autonomous agent loop + Decision Intel hook
 │   ├── api/
-│   │   ├── approval_routes.py  # Owner approval endpoints
-│   │   ├── invoices.py
+│   │   ├── owner_actions.py        # Inventory, system-state, approval endpoints
+│   │   ├── approval_routes.py      # Owner approval endpoints
+│   │   ├── invoices.py             # Invoice API
 │   │   └── ...
 │   ├── services/
-│   │   ├── ai_extractor.py     # LangChain + Gemini invoice extraction
-│   │   ├── gmail_agent.py      # Background Gmail polling agent (v2)
-│   │   ├── token_refresh.py    # Auto OAuth token refresh
-│   │   ├── alert_service.py    # Email + SMS + WhatsApp alerts
-│   │   └── email_service.py    # Gmail email ingestion
+│   │   ├── severity_engine.py      # Decision Intelligence severity calculator
+│   │   ├── ai_extractor.py         # LangChain + Gemini invoice extraction
+│   │   ├── email_service.py        # Gmail email ingestion
+│   │   ├── python_erp.py           # ERP adapter
+│   │   ├── alert_service.py        # Email + SMS + WhatsApp alerts
+│   │   └── token_refresh.py        # Auto OAuth token refresh
 │   ├── templates/
-│   │   ├── index.html          # Main dashboard
-│   │   └── settings.html       # Settings page
-│   ├── models.py               # SQLAlchemy models
-│   ├── main.py                 # FastAPI app + all routes
-│   ├── auth.py                 # Google OAuth login
+│   │   ├── index.html              # Main dashboard + Decision Intel bar
+│   │   ├── inventory.html          # ERP-style inventory page
+│   │   └── settings.html           # Settings page
+│   ├── models.py                   # SQLAlchemy models (incl. SystemState)
+│   ├── main.py                     # FastAPI app + all routes
+│   ├── auth.py                     # Google OAuth login
 │   └── database.py
-├── gmail_auth_setup.py         # One-time Gmail OAuth setup
-├── config.py                   # Centralized settings
+├── seed_inventory.py               # Inventory data seeder (100+ items)
+├── gmail_auth_setup.py             # One-time Gmail OAuth setup
+├── config.py                       # Centralized settings
 ├── requirements.txt
-├── run.py                      # Server entrypoint
-├── .env.example                # Environment variable template
+├── run.py                          # Server entrypoint
+├── .env.example                    # Environment variable template
 ├── docker-compose.yml
-└── nixpacks.toml               # Railway deployment config
+└── nixpacks.toml                   # Railway deployment config
 ```
+
+---
+
+## 🎯 Decision Intelligence Modes
+
+| Mode | Trigger | Effect |
+|---|---|---|
+| 🟢 **Debate** | Severity 0–6 | Normal operation, AI processes invoices automatically |
+| 🔴 **Crisis** | Severity 7–10 | High alert — stock critically low or supplier unavailable |
+| ⚫ **Safe** | AI confidence < 60% | Auto-approval disabled, invoices forced to manual review |
+
+### Severity Scoring
+
+| Condition | Score |
+|---|---|
+| Stock > reorder level | 2 |
+| Stock ≤ reorder level | 6 |
+| Stock = 0 (out of stock) | 9 |
+| Supplier unavailable | +2 |
+| *Capped at 10* | |
 
 ---
 

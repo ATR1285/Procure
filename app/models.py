@@ -291,3 +291,16 @@ class GmailInvoice(Base):
     audit_trail    = Column(JSON, default=list)                # [{t, a, m}] action log
     created_at     = Column(DateTime, default=datetime.datetime.utcnow)
 
+
+class SystemState(Base):
+    """
+    Decision Intelligence Layer — System operating state.
+
+    Single-row table tracking the current system mode and severity score.
+    Modes: DEBATE (normal), CRISIS (high severity), SAFE (low AI confidence).
+    """
+    __tablename__ = "system_state"
+    id = Column(Integer, primary_key=True, index=True)
+    current_mode = Column(String, default="DEBATE")   # DEBATE, CRISIS, SAFE
+    severity_score = Column(Integer, default=0)        # 0–10
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)

@@ -110,7 +110,39 @@ def start_agent_loop():
                             process_invoice_match(db, event.payload)
                             
                             logger.info(f"[AGENT] ✓ Invoice match computed, DB updated")
-                        
+
+                            # ── Decision Intelligence Hook (additive) ──────
+                            try:
+                                from ..services.severity_engine import calculate_system_state
+                                confidence = event.payload.get("extraction_confidence", 75)
+                                if isinstance(confidence, str):
+                                    confidence = float(confidence)
+                                confidence = confidence * 100 if confidence <= 1 else confidence
+
+                                worst = db.query(models.InventoryItem).order_by(
+                                    (models.InventoryItem.stock_quantity - models.InventoryItem.reorder_level)
+                                ).first()
+                                stock_qty = worst.stock_quantity if worst else 100
+                                reorder_lvl = worst.reorder_level if worst else 10
+
+                                state = calculate_system_state(
+                                    stock_quantity=stock_qty,
+                                    reorder_level=reorder_lvl,
+                                    supplier_status="AVAILABLE",
+                                    ai_confidence=confidence,
+                                )
+                                row = db.query(models.SystemState).first()
+                                if not row:
+                                    row = models.SystemState()
+                                    db.add(row)
+                                row.current_mode = state["mode"]
+                                row.severity_score = state["severity_score"]
+                                row.last_updated = datetime.datetime.now()
+                                db.commit()
+                                logger.info(f"[DECISION-INTEL] Mode={state['mode']}, Severity={state['severity_score']}")
+                            except Exception as di_err:
+                                logger.error(f"[DECISION-INTEL] Hook error (non-fatal): {di_err}")
+
                         # ── DONE: Mark event complete ──────────────
                         event.status = 'DONE'
                         event.processed_at = datetime.datetime.now()

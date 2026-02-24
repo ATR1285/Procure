@@ -62,6 +62,40 @@
     <!-- ── Main ────────────────────────────────────────────────────────── -->
     <main class="max-w-7xl mx-auto px-6 md:px-8 py-8 space-y-8">
 
+        <!-- ── Decision Intelligence Bar ──────────────────────────────── -->
+        <div id="decision-intel-bar"
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2.5">
+                    <span id="di-mode-dot"
+                        class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+                    <div>
+                        <p class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">System Mode</p>
+                        <p id="di-mode-label" class="text-sm font-semibold text-gray-900">Debate Mode</p>
+                        <p id="di-mode-subtitle" class="text-[11px] text-gray-400 mt-0.5 leading-tight">System operating
+                            under normal conditions.</p>
+                    </div>
+                </div>
+                <div class="w-px h-12 bg-gray-100 flex-shrink-0"></div>
+                <div>
+                    <p class="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Severity</p>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <div class="w-28 h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div id="di-severity-bar"
+                                class="h-full rounded-full bg-gray-200 transition-all duration-300" style="width: 10%">
+                            </div>
+                        </div>
+                        <span id="di-severity-text" class="text-xs font-mono font-medium text-gray-500">0/10</span>
+                    </div>
+                    <p id="di-severity-label" class="text-[10px] text-gray-400 mt-1">Normal Operations</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] text-gray-400">Last Updated</p>
+                <p id="di-updated" class="text-xs text-gray-500 font-medium">—</p>
+            </div>
+        </div>
+
         <!-- ── Systems Status Bar ──────────────────────────────────────── -->
         <div class="grid grid-cols-1 gap-6">
             <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-center gap-6">
@@ -138,16 +172,19 @@
                     class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-all duration-200">
                     <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Total Invoices</p>
                     <p id="an-total" class="text-3xl font-semibold text-gray-900 mt-2">—</p>
+                    <p id="an-total-caption" class="text-[10px] text-gray-300 mt-1 hidden">No invoice data yet</p>
                 </div>
                 <div
                     class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-all duration-200">
                     <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Approved Spend</p>
                     <p id="an-spend" class="text-3xl font-semibold text-emerald-600 mt-2">—</p>
+                    <p id="an-spend-caption" class="text-[10px] text-gray-300 mt-1 hidden">No invoice data yet</p>
                 </div>
                 <div
                     class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-all duration-200">
                     <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Approval Rate</p>
                     <p id="an-rate" class="text-3xl font-semibold text-blue-600 mt-2">—</p>
+                    <p id="an-rate-caption" class="text-[10px] text-gray-300 mt-1 hidden">No invoice data yet</p>
                 </div>
             </div>
 
@@ -226,14 +263,19 @@
         function renderInvoices(invoices) {
             const list = document.getElementById('invoice-list');
             if (!invoices || invoices.length === 0) {
+                const lastScan = window._lastInvoiceScan
+                    ? new Date(window._lastInvoiceScan).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: 'numeric', month: 'short' })
+                    : 'Initializing...';
                 list.innerHTML = `
-                    <div class="p-12 text-center flex flex-col items-center justify-center gap-2 min-h-[180px]">
-                        <i data-lucide="mail-search" class="w-6 h-6 text-gray-200"></i>
-                        <p class="text-gray-400 text-sm">Scanning inbox for invoices...</p>
-                        <p class="text-gray-300 text-xs">Agent checks every 60s. New invoices appear automatically.</p>
+                    <div class="p-10 text-center flex flex-col items-center justify-center gap-2.5 min-h-[180px]">
+                        <div class="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin"></div>
+                        <p class="text-gray-400 text-sm font-medium">Scanning inbox for invoices...</p>
+                        <p class="text-gray-300 text-xs">Monitoring inbox every 60 seconds</p>
+                        <p class="text-gray-300 text-[10px] font-mono mt-1">Last scan: ${lastScan}</p>
                     </div>`;
                 lucide.createIcons(); return;
             }
+            window._lastInvoiceScan = new Date().toISOString();
             list.innerHTML = invoices.map(inv => {
                 const date = inv.received_at ? new Date(inv.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
                 const amount = inv.amount > 0 ? `$${inv.amount.toLocaleString()}` : 'N/A';
@@ -414,10 +456,18 @@
             try {
                 const res = await fetch('/api/analytics', { headers: getHeaders() });
                 const d = await res.json();
-                document.getElementById('an-total').textContent = d.total_invoices ?? '—';
+                const totalInv = d.total_invoices ?? 0;
+                document.getElementById('an-total').textContent = totalInv || '—';
                 document.getElementById('an-spend').textContent = d.total_approved_spend > 0 ? `$${d.total_approved_spend.toLocaleString()}` : '$0';
                 document.getElementById('an-rate').textContent = `${d.approval_rate ?? 0}%`;
                 document.getElementById('an-weekly').textContent = `${d.invoices_last_7_days} this week`;
+
+                // Show/hide "No invoice data yet" captions
+                const showCap = totalInv === 0;
+                ['an-total-caption', 'an-spend-caption', 'an-rate-caption'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.toggle('hidden', !showCap);
+                });
 
                 const vEl = document.getElementById('an-vendors');
                 if (!d.top_vendors || d.top_vendors.length === 0) {
@@ -485,13 +535,69 @@
 
 
 
+        // ── Decision Intelligence State ─────────────────────────────────
+        async function fetchSystemState() {
+            try {
+                const res = await fetch('/api/system-state', { headers: getHeaders() });
+                const d = await res.json();
+                const dot = document.getElementById('di-mode-dot');
+                const label = document.getElementById('di-mode-label');
+                const subtitle = document.getElementById('di-mode-subtitle');
+                const bar = document.getElementById('di-severity-bar');
+                const text = document.getElementById('di-severity-text');
+                const sevLabel = document.getElementById('di-severity-label');
+                const updated = document.getElementById('di-updated');
+
+                const modeConfig = {
+                    'DEBATE': { color: 'bg-emerald-400', label: '🟢 Debate Mode', textColor: 'text-emerald-700', subtitle: 'System operating under normal conditions.' },
+                    'CRISIS': { color: 'bg-red-500', label: '🔴 Crisis Mode', textColor: 'text-red-700', subtitle: 'High operational risk detected. Immediate action required.' },
+                    'SAFE': { color: 'bg-gray-500', label: '⚫ Safe Mode', textColor: 'text-gray-700', subtitle: 'Data integrity or confidence issue. Manual review required.' },
+                };
+                const cfg = modeConfig[d.current_mode] || modeConfig['DEBATE'];
+
+                // Mode indicator
+                dot.className = `w-3 h-3 rounded-full ${cfg.color} ${d.current_mode === 'DEBATE' ? 'animate-pulse' : ''} flex-shrink-0`;
+                label.textContent = cfg.label;
+                label.className = `text-sm font-semibold ${cfg.textColor}`;
+                subtitle.textContent = cfg.subtitle;
+
+                // Severity bar — color scale: 0-3 green, 4-6 orange, 7-10 red
+                const score = d.severity_score;
+                let barColor, sevText;
+                if (score === 0) {
+                    barColor = 'bg-gray-200';
+                    sevText = 'Normal Operations';
+                } else if (score <= 3) {
+                    barColor = 'bg-emerald-400';
+                    sevText = 'Low Severity';
+                } else if (score <= 6) {
+                    barColor = 'bg-amber-400';
+                    sevText = 'Elevated';
+                } else {
+                    barColor = 'bg-red-500';
+                    sevText = 'Critical';
+                }
+                const barWidth = score === 0 ? 10 : (score / 10) * 100;
+                bar.className = `h-full rounded-full ${barColor} transition-all duration-300`;
+                bar.style.width = `${barWidth}%`;
+                text.textContent = `${score}/10`;
+                sevLabel.textContent = sevText;
+
+                if (d.last_updated) {
+                    const dt = new Date(d.last_updated);
+                    updated.textContent = dt.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+                }
+            } catch (err) { console.error('System state fetch failed', err); }
+        }
+
         // ── Init & Polling ───────────────────────────────────────────────
         setInterval(() => { fetchInvoices(); fetchAlerts(); }, 5000);
-        setInterval(() => { fetchAnalytics(); fetchAgentStatus(); }, 15000);
+        setInterval(() => { fetchAnalytics(); fetchAgentStatus(); fetchSystemState(); }, 15000);
         window.onload = () => {
             fetchInvoices(); fetchAlerts();
             fetchERPStatus(); fetchAIStatus();
             fetchAnalytics(); fetchAgentStatus();
+            fetchSystemState();
             lucide.createIcons();
         }
     </script>
