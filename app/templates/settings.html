@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ProcureIQ | ERP Connection Settings</title>
+    <title>ProcureIQ | Settings</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
         body {
             font-family: 'Inter', sans-serif;
@@ -18,103 +18,266 @@
         .font-mono {
             font-family: 'JetBrains Mono', monospace;
         }
+
+        .tab-panel {
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-[#f8f9fb] min-h-screen">
+
+    <!-- ── Navbar ──────────────────────────────────────────────────────── -->
     <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="bg-black p-1.5 rounded-lg">
-                    <i data-lucide="shield-check" class="w-5 h-5 text-white"></i>
+        <div class="max-w-6xl mx-auto px-6 md:px-8 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="bg-gray-900 w-8 h-8 rounded-lg flex items-center justify-center">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-white"></i>
                 </div>
-                <h1 class="text-xl font-extrabold tracking-tight">ProcureIQ <span
-                        class="text-gray-400 font-medium">Settings</span></h1>
+                <span class="text-[15px] font-semibold text-gray-900">ProcureIQ</span>
+                <span class="text-gray-300 font-light">/</span>
+                <span class="text-[15px] text-gray-500">Settings</span>
             </div>
-            <a href="/"
-                class="bg-slate-900 hover:bg-black text-white px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg active:scale-95">
-                <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
-                Back to Dashboard
-            </a>
+            <div class="flex items-center gap-2.5">
+                {% if user and user.picture %}
+                <img src="{{ user.picture }}" alt="{{ user.name }}"
+                    class="w-8 h-8 rounded-full ring-2 ring-gray-100 object-cover">
+                {% endif %}
+                <a href="/"
+                    class="h-8 px-4 rounded-lg bg-gray-900 text-white text-[13px] font-medium flex items-center gap-1.5 hover:bg-gray-800 transition-colors">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Dashboard
+                </a>
+                <a href="/auth/logout" title="Sign out"
+                    class="w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 flex items-center justify-center transition-colors">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                </a>
+            </div>
         </div>
     </nav>
 
-    <main class="max-w-4xl mx-auto px-6 py-8" x-data="appSettings()">
+    <!-- ── Main ────────────────────────────────────────────────────────── -->
+    <main class="max-w-6xl mx-auto px-6 md:px-8 py-8" x-data="appSettings()">
 
-        <!-- Tabs -->
-        <div class="flex gap-2 mb-6">
-            <button @click="tab='erp'"
-                :class="tab==='erp' ? 'bg-black text-white' : 'bg-white text-gray-600 border border-gray-200'"
-                class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all">
-                🔌 ERP Connection
-            </button>
-            <button @click="tab='credentials'; loadCredentials()"
-                :class="tab==='credentials' ? 'bg-black text-white' : 'bg-white text-gray-600 border border-gray-200'"
-                class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all">
-                🔑 API Credentials
-            </button>
-            <button @click="tab='notifications'; loadNotifSettings()"
-                :class="tab==='notifications' ? 'bg-black text-white' : 'bg-white text-gray-600 border border-gray-200'"
-                class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all">
-                📧 Notifications
-            </button>
+        <!-- Tab Bar -->
+        <div class="flex gap-1 bg-gray-100 rounded-xl p-1 mb-8">
+            <template
+                x-for="t in [{id:'account',icon:'user',label:'Account'},{id:'erp',icon:'database',label:'ERP Connection'},{id:'credentials',icon:'key-round',label:'API Keys'},{id:'notifications',icon:'bell',label:'Notifications'}]"
+                :key="t.id">
+                <button
+                    @click="tab=t.id; if(t.id==='credentials') loadCredentials(); if(t.id==='notifications') loadNotifSettings();"
+                    :class="tab===t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 h-9 rounded-lg text-[13px] font-medium transition-all flex items-center justify-center gap-1.5">
+                    <i :data-lucide="t.icon" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline" x-text="t.label"></span>
+                </button>
+            </template>
         </div>
 
 
-        <!-- ═══ ERP TAB ═══════════════════════════════════════════════ -->
-        <div x-show="tab==='erp'">
-            <!-- Current Connection Status -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <div class="p-3 rounded-2xl" :class="connected ? 'bg-green-50' : 'bg-gray-50'">
-                            <i data-lucide="database" class="w-6 h-6"
-                                :class="connected ? 'text-green-600' : 'text-gray-400'"></i>
+        <!-- ══════════════ ACCOUNT TAB ══════════════════════════════════ -->
+        <div x-show="tab==='account'" x-transition class="tab-panel space-y-8">
+
+            <!-- Profile -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="h-28 bg-gradient-to-r from-blue-600/90 to-indigo-500/80"></div>
+                <div class="px-6 md:px-8 pb-6 md:pb-8 -mt-10">
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
+                        {% if user and user.picture %}
+                        <img src="{{ user.picture }}" alt="{{ user.name }}"
+                            class="w-20 h-20 rounded-full ring-[3px] ring-white shadow-md object-cover bg-white flex-shrink-0">
+                        {% else %}
+                        <div
+                            class="w-20 h-20 rounded-full ring-[3px] ring-white shadow-md bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="user" class="w-8 h-8 text-gray-400"></i>
                         </div>
-                        <div>
-                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Active ERP Connection
-                            </h3>
-                            <p class="text-lg font-bold text-gray-900 mt-0.5" x-text="currentName"></p>
+                        {% endif %}
+                        <div class="pb-0.5 min-w-0">
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <h2 class="text-2xl font-semibold text-gray-900 leading-tight">{{ user.name if user else
+                                    'Guest User' }}</h2>
+                                {% if user and user.is_admin %}
+                                <span
+                                    class="inline-flex items-center gap-1 h-5 px-2 bg-amber-50 text-amber-600 text-[10px] font-semibold rounded-md border border-amber-100">
+                                    <i data-lucide="crown" class="w-2.5 h-2.5"></i> ADMIN
+                                </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-sm text-gray-400 mt-0.5 font-mono">{{ user.email if user else 'Not signed in'
+                                }}</p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
-                            :class="connected ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                </div>
+            </div>
+
+            <!-- Session & Security -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50">
+                    <h3 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="shield" class="w-4 h-4 text-gray-400"></i>
+                        Session & Security
+                    </h3>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Login Provider</p>
+                            <div class="flex items-center gap-2 mt-2">
+                                <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                                    <path fill="#4285F4"
+                                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                                    <path fill="#34A853"
+                                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                    <path fill="#FBBC05"
+                                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                    <path fill="#EA4335"
+                                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                <span class="text-base font-medium text-gray-800">Google OAuth</span>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Session Status</p>
+                            <div class="flex items-center gap-2 mt-2">
+                                <span class="inline-flex items-center gap-1.5 text-base font-medium text-emerald-600">
+                                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                    Active
+                                </span>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Role</p>
+                            <p class="text-base font-medium text-gray-800 mt-2">{{ 'Administrator' if user and
+                                user.is_admin else 'Member' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50">
+                    <h3 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="server" class="w-4 h-4 text-gray-400"></i>
+                        System Information
+                    </h3>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Version</p>
+                            <p class="text-lg font-semibold text-gray-800 mt-2">v2.0</p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">ERP</p>
+                            <p class="text-lg font-semibold text-gray-800 mt-2 truncate" x-text="currentType || '—'">
+                            </p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">AI Engine</p>
+                            <p class="text-lg font-semibold text-gray-800 mt-2 truncate" x-text="aiProvider || '—'"></p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-xl p-5 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Database</p>
+                            <p class="text-lg font-semibold text-gray-800 mt-2">SQLite</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Actions -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50">
+                    <h3 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="log-out" class="w-4 h-4 text-gray-400"></i>
+                        Account Actions
+                    </h3>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <a href="/auth/logout"
+                            class="flex-1 h-11 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors active:scale-[0.98]">
+                            <i data-lucide="log-out" class="w-4 h-4"></i> Sign Out
+                        </a>
+                        <button
+                            @click="if(confirm('Clear all session data and sign out?')) window.location.href='/auth/logout'"
+                            class="flex-1 h-11 flex items-center justify-center gap-2 border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors active:scale-[0.98]">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i> Clear Session & Logout
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-3 text-center">Signing out ends your session. You can sign back
+                        in anytime with Google.</p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ══════════════ ERP TAB ══════════════════════════════════════ -->
+        <div x-show="tab==='erp'" x-transition class="tab-panel space-y-8">
+
+            <!-- Current Connection -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center"
+                            :class="connected ? 'bg-emerald-50' : 'bg-gray-100'">
+                            <i data-lucide="database" class="w-5 h-5"
+                                :class="connected ? 'text-emerald-600' : 'text-gray-400'"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Active Connection</p>
+                            <p class="text-lg font-semibold text-gray-900 mt-0.5" x-text="currentName"></p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="h-6 px-2.5 rounded-md text-[11px] font-medium inline-flex items-center"
+                            :class="connected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'"
                             x-text="connected ? 'Connected' : 'Not Tested'"></span>
                         <span
-                            class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-700"
+                            class="h-6 px-2.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center"
                             x-text="currentType"></span>
                     </div>
                 </div>
             </div>
 
-            <!-- Connection Form -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div class="p-6 border-b border-gray-100 bg-gray-50/50">
-                    <h2 class="font-bold text-lg text-gray-800 flex items-center gap-2">
-                        <i data-lucide="settings" class="w-5 h-5 text-gray-400"></i>
+            <!-- Configure Form -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50">
+                    <h3 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="settings" class="w-4 h-4 text-gray-400"></i>
                         Configure ERP Connection
-                    </h2>
-                    <p class="text-sm text-gray-500 mt-1">Connect your ERP system or use the built-in Python Sample DB
-                        for
-                        demos.</p>
+                    </h3>
+                    <p class="text-sm text-gray-400 mt-1">Connect your ERP system or use the built-in sample database.
+                    </p>
                 </div>
-
-                <form @submit.prevent="saveConnection()" class="p-6 space-y-6">
-                    <!-- Connection Name -->
+                <form @submit.prevent="saveConnection()" class="px-6 md:px-8 py-6 space-y-5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Connection
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Connection
                             Name</label>
                         <input x-model="form.connection_name" type="text" placeholder="e.g., Production Database"
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                            class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
                     </div>
-
-                    <!-- ERP Type -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ERP
+                        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">ERP
                             Type</label>
-                        <select x-model="form.erp_type"
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all bg-white">
+                        <select x-model="form.erp_type" aria-label="ERP Type"
+                            class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all bg-white">
                             <option value="python_db">Python Sample DB (Demo)</option>
                             <option value="sap">SAP S/4HANA</option>
                             <option value="netsuite">Oracle NetSuite</option>
@@ -122,59 +285,55 @@
                         </select>
                     </div>
 
-                    <!-- Real ERP Fields (shown when not python_db) -->
                     <template x-if="form.erp_type !== 'python_db'">
-                        <div class="space-y-6 p-5 bg-gray-50 rounded-xl border border-gray-100">
+                        <div class="space-y-4 p-5 bg-gray-50 rounded-xl border border-gray-100">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API
+                                <label
+                                    class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">API
                                     URL</label>
                                 <input x-model="form.api_url" type="url" placeholder="https://your-erp.example.com"
-                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                                    class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API
-                                    Key
-                                    / Password</label>
+                                <label
+                                    class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">API
+                                    Key / Password</label>
                                 <input x-model="form.api_key" type="password" placeholder="Enter API key or password"
-                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                                    class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label
-                                        class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Database
+                                        class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Database
                                         Name</label>
-                                    <input x-model="form.database_name" type="text" placeholder="e.g., production_db"
-                                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                                    <input x-model="form.database_name" type="text" placeholder="production_db"
+                                        class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
                                 </div>
                                 <div>
                                     <label
-                                        class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Username</label>
+                                        class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Username</label>
                                     <input x-model="form.username" type="text" placeholder="admin@company.com"
-                                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
+                                        class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
                                 </div>
                             </div>
                         </div>
                     </template>
 
-                    <!-- Test Result -->
-                    <div x-show="testResult" class="p-4 rounded-xl border text-sm font-medium"
-                        :class="testSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'">
-                        <div class="flex items-center gap-2">
-                            <i :data-lucide="testSuccess ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i>
-                            <span x-text="testResult"></span>
-                        </div>
+                    <div x-show="testResult" class="p-3.5 rounded-lg border text-sm font-medium flex items-center gap-2"
+                        :class="testSuccess ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'">
+                        <i :data-lucide="testSuccess ? 'check-circle' : 'x-circle'" class="w-4 h-4 flex-shrink-0"></i>
+                        <span x-text="testResult"></span>
                     </div>
 
-                    <!-- Actions -->
-                    <div class="flex gap-4 pt-2">
-                        <button type="button" @click="testConnection()"
-                            class="flex-1 px-5 py-3.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+                    <div class="flex flex-col sm:flex-row gap-3 pt-1">
+                        <button type="button" @click="testConnection()" aria-label="Test Connection"
+                            class="flex-1 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                             :disabled="testing">
                             <i data-lucide="wifi" class="w-4 h-4"></i>
                             <span x-text="testing ? 'Testing...' : 'Test Connection'"></span>
                         </button>
-                        <button type="submit"
-                            class="flex-1 bg-slate-900 hover:bg-black text-white px-5 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                        <button type="submit" aria-label="Save and Activate"
+                            class="flex-1 h-10 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                             :disabled="saving">
                             <i data-lucide="save" class="w-4 h-4"></i>
                             <span x-text="saving ? 'Saving...' : 'Save & Activate'"></span>
@@ -183,107 +342,110 @@
                 </form>
             </div>
 
-            <!-- Architecture Info -->
-            <div class="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <h3 class="font-bold text-sm text-gray-800 flex items-center gap-2 mb-3">
-                    <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
-                    About This Architecture
-                </h3>
-                <p class="text-sm text-gray-600 leading-relaxed">
-                    ProcureIQ uses an <strong>ERP Adapter pattern</strong> — the AI agent works with a unified interface
-                    regardless of whether you're using the built-in Python Sample DB or a real ERP system.
-                    Switch between backends without changing a single line of agent code.
-                </p>
-                <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div class="p-3 bg-gray-50 rounded-xl text-center">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Python DB</p>
-                        <p class="text-sm font-bold text-gray-800 mt-1">Default</p>
-                    </div>
-                    <div class="p-3 bg-gray-50 rounded-xl text-center">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Custom</p>
-                        <p class="text-sm font-bold text-gray-800 mt-1">REST API</p>
-                    </div>
-                    <div class="p-3 bg-gray-50 rounded-xl text-center">
-                        <p class="text-xs font-bold text-gray-400 uppercase">SAP</p>
-                        <p class="text-sm font-bold text-gray-800 mt-1">OData</p>
-                    </div>
-                    <div class="p-3 bg-gray-50 rounded-xl text-center">
-                        <p class="text-xs font-bold text-gray-400 uppercase">NetSuite</p>
-                        <p class="text-sm font-bold text-gray-800 mt-1">REST</p>
+            <!-- Architecture -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50">
+                    <h3 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 text-gray-400"></i>
+                        About This Architecture
+                    </h3>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <p class="text-sm text-gray-500 leading-relaxed mb-5">
+                        ProcureIQ uses an <strong class="text-gray-700">ERP Adapter pattern</strong> — the AI agent
+                        works with a
+                        unified interface regardless of backend. Switch between systems without changing agent code.
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div
+                            class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Python DB</p>
+                            <p class="text-sm font-medium text-gray-800 mt-1.5">Default</p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Custom</p>
+                            <p class="text-sm font-medium text-gray-800 mt-1.5">REST API</p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">SAP</p>
+                            <p class="text-sm font-medium text-gray-800 mt-1.5">OData</p>
+                        </div>
+                        <div
+                            class="bg-gray-50 rounded-lg p-4 border border-gray-100 text-center hover:shadow-md transition-all duration-200">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">NetSuite</p>
+                            <p class="text-sm font-medium text-gray-800 mt-1.5">REST</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div><!-- end ERP tab -->
+        </div>
 
 
-        <!-- ═══ CREDENTIALS TAB ══════════════════════════════════════ -->
-        <div x-show="tab==='credentials'">
+        <!-- ══════════════ CREDENTIALS TAB ══════════════════════════════ -->
+        <div x-show="tab==='credentials'" x-transition class="tab-panel space-y-6">
 
-            <!-- Security Notice -->
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
-                <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0"></i>
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+                <i data-lucide="shield-alert" class="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0"></i>
                 <div>
-                    <p class="text-sm font-bold text-amber-800">Keys are never displayed in full</p>
-                    <p class="text-xs text-amber-700 mt-0.5">To reveal a saved key, you must re-verify with Google. Keys
-                        are stored securely in the database — not in code.</p>
+                    <p class="text-sm font-medium text-amber-800">Keys are never displayed in full</p>
+                    <p class="text-xs text-amber-600 mt-0.5">Re-verify with Google to reveal. Keys are stored in the
+                        database, not in code.</p>
                 </div>
             </div>
 
-            <!-- Re-auth Banner -->
             <template x-if="!reauthVerified">
-                <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <i data-lucide="lock" class="w-5 h-5 text-blue-600"></i>
-                        <p class="text-sm font-semibold text-blue-800">Want to reveal saved keys? Re-verify with Google
-                            first.</p>
+                <div
+                    class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="lock" class="w-4 h-4 text-blue-500 flex-shrink-0"></i>
+                        <p class="text-sm font-medium text-blue-800">Re-verify with Google to reveal saved keys.</p>
                     </div>
                     <a href="/auth/reauth"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        Verify Identity
+                        class="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i> Verify Identity
                     </a>
                 </div>
             </template>
             <template x-if="reauthVerified">
-                <div class="bg-green-50 border border-green-200 rounded-2xl p-3 mb-6 flex items-center gap-3">
-                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
-                    <p class="text-sm font-semibold text-green-800">Identity verified — you can reveal keys for 5
+                <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 flex items-center gap-2.5">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 flex-shrink-0"></i>
+                    <p class="text-sm font-medium text-emerald-700">Identity verified — you can reveal keys for 5
                         minutes.</p>
                 </div>
             </template>
 
-            <!-- Credential Cards -->
             <div class="space-y-3" x-show="credentials.length > 0">
                 <template x-for="cred in credentials" :key="cred.key">
-                    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                        <div class="flex items-start justify-between gap-4">
+                    <div
+                        class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-all duration-200">
+                        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="text-xs font-bold text-gray-500 uppercase tracking-widest"
-                                        x-text="cred.description"></span>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-sm font-medium text-gray-900" x-text="cred.description"></span>
                                     <span x-show="cred.from_db"
-                                        class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-extrabold rounded-full uppercase">DB</span>
+                                        class="h-5 px-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded border border-emerald-100 inline-flex items-center">DB</span>
                                     <span x-show="!cred.from_db && cred.is_set"
-                                        class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold rounded-full uppercase">.env</span>
+                                        class="h-5 px-1.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded border border-blue-100 inline-flex items-center">.env</span>
                                     <span x-show="!cred.is_set"
-                                        class="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-extrabold rounded-full uppercase">Not
+                                        class="h-5 px-1.5 bg-gray-50 text-gray-400 text-[10px] font-medium rounded border border-gray-100 inline-flex items-center">Not
                                         Set</span>
                                 </div>
-                                <p class="text-xs text-gray-400 font-mono" x-text="cred.key"></p>
-                                <!-- Masked / Revealed value -->
-                                <p class="mt-2 text-sm font-mono text-gray-700 tracking-widest"
-                                    x-text="revealedKeys[cred.key] || cred.masked_value"></p>
+                                <p class="text-xs text-gray-400 font-mono mt-0.5" x-text="cred.key"></p>
+                                <div class="mt-2 inline-block bg-gray-50 border border-gray-100 rounded-md px-3 py-1.5">
+                                    <p class="text-sm font-mono text-gray-500 tracking-wider"
+                                        x-text="revealedKeys[cred.key] || cred.masked_value || '••••••••'"></p>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2 flex-shrink-0">
-                                <!-- Reveal button (only when re-authed) -->
+                            <div class="flex items-center gap-2 flex-shrink-0 pt-0.5">
                                 <button x-show="reauthVerified && cred.is_set && !revealedKeys[cred.key]"
-                                    @click="revealKey(cred.key)"
-                                    class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1">
+                                    @click="revealKey(cred.key)" aria-label="Reveal key"
+                                    class="h-8 px-3 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
                                     <i data-lucide="eye" class="w-3.5 h-3.5"></i> Reveal
                                 </button>
-                                <!-- Update button -->
-                                <button @click="openEdit(cred)"
-                                    class="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold hover:bg-gray-800 transition-all flex items-center gap-1">
+                                <button @click="openEdit(cred)" aria-label="Update credential"
+                                    class="h-8 px-3 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5">
                                     <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                                     <span x-text="cred.is_set ? 'Update' : 'Set'"></span>
                                 </button>
@@ -294,575 +456,214 @@
             </div>
 
             <!-- Edit Modal -->
-            <div x-show="editingCred" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            <div x-show="editingCred" x-transition.opacity
+                class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                 @click.self="editingCred=null">
-                <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-md mx-4">
-                    <h3 class="font-bold text-lg text-gray-900 mb-1" x-text="editingCred?.description"></h3>
+                <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md" x-transition.scale.95>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-0.5" x-text="editingCred?.description"></h3>
                     <p class="text-xs text-gray-400 font-mono mb-5" x-text="editingCred?.key"></p>
-
-                    <label class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 block">New
+                    <label class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5 block">New
                         Value</label>
                     <input x-model="editValue" type="password" placeholder="Paste your key here..."
-                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black/20 transition-all mb-2">
-                    <p class="text-xs text-gray-400 mb-5">⚠️ The field uses password masking — your key won't be visible
-                        while typing.</p>
-
-                    <div x-show="saveMessage" class="p-3 rounded-xl text-xs font-bold mb-4"
-                        :class="saveSuccess ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                        class="w-full h-10 px-3.5 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all mb-1.5">
+                    <p class="text-xs text-gray-400 mb-5">Field uses password masking for security.</p>
+                    <div x-show="saveMessage" class="p-3 rounded-lg text-xs font-medium mb-4"
+                        :class="saveSuccess ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'"
                         x-text="saveMessage"></div>
-
                     <div class="flex gap-3">
                         <button @click="editingCred=null; editValue=''; saveMessage=''"
-                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">
-                            Cancel
-                        </button>
+                            class="flex-1 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
                         <button @click="saveKey()"
-                            class="flex-1 bg-black text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+                            class="flex-1 h-10 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
                             :disabled="savingKey">
-                            <i data-lucide="save" class="w-4 h-4"></i>
-                            <span x-text="savingKey ? 'Saving...' : 'Save Key'"></span>
+                            <i data-lucide="save" class="w-4 h-4"></i> <span
+                                x-text="savingKey ? 'Saving...' : 'Save Key'"></span>
                         </button>
                     </div>
                 </div>
             </div>
-        </div><!-- end credentials tab -->
+        </div>
 
-        <script>
-            const API_KEY = "{{ api_key }}";
-            const getHeaders = () => ({
-                "X-API-Key": API_KEY,
-                "Content-Type": "application/json"
-            });
 
-            function appSettings() {
-                return {
-                    // Tab state
-                    tab: new URLSearchParams(window.location.search).get('tab') || 'erp',
+        <!-- ══════════════ NOTIFICATIONS TAB ════════════════════════════ -->
+        <div x-show="tab==='notifications'" x-transition class="tab-panel space-y-8">
 
-                    // ERP tab state
-                    currentName: 'Loading...',
-                    currentType: '...',
-                    connected: false,
-                    testing: false,
-                    saving: false,
-                    testResult: '',
-                    testSuccess: false,
-                    form: {
-                        connection_name: 'Python Sample DB',
-                        erp_type: 'python_db',
-                        api_url: '',
-                        api_key: '',
-                        database_name: '',
-                        username: ''
-                    },
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+                <i data-lucide="info" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"></i>
+                <div>
+                    <p class="text-sm font-medium text-blue-800">How it works</p>
+                    <p class="text-xs text-blue-600 mt-0.5 leading-relaxed">
+                        When stock drops below threshold → you get an email → click <strong>Approve Order</strong> →
+                        system emails your supplier automatically.
+                    </p>
+                </div>
+            </div>
 
-                    // Credentials tab state
-                    credentials: [],
-                    reauthVerified: false,
-                    editingCred: null,
-                    editValue: '',
-                    savingKey: false,
-                    saveMessage: '',
-                    saveSuccess: false,
-                    revealedKeys: {},
+            <!-- Owner Email -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-[15px] font-semibold text-gray-900">Owner Alert Email</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Low-stock alerts and approval requests</p>
+                    </div>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <div class="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 h-10">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0"></i>
+                        <span class="text-sm font-mono text-gray-600 flex-1 truncate">{{ user.email if user else 'Not
+                            logged in' }}</span>
+                        <span
+                            class="text-[10px] bg-emerald-50 text-emerald-600 font-medium px-2 py-0.5 rounded border border-emerald-100 whitespace-nowrap">Google
+                            Auth</span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2.5">Tied to your Google account — cannot be changed here.</p>
+                </div>
+            </div>
 
-                    async init() {
-                        await this.fetchCurrentConnection();
-                        await this.checkReauthStatus();
-                        if (this.tab === 'credentials') await this.loadCredentials();
-                        // Auto-open credentials tab if ?tab=credentials
-                        if (new URLSearchParams(window.location.search).get('verified')) {
-                            this.tab = 'credentials';
-                            await this.loadCredentials();
-                        }
-                        this.$nextTick(() => lucide.createIcons());
-                    },
+            <!-- Supplier Email -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div class="px-6 md:px-8 py-5 border-b border-gray-50 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="truck" class="w-4 h-4 text-orange-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-[15px] font-semibold text-gray-900">Supplier Email</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Purchase orders sent here on approval</p>
+                    </div>
+                </div>
+                <div class="px-6 md:px-8 py-6">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="email" x-model="notif.supplierEmail" placeholder="supplier@example.com"
+                            class="flex-1 h-10 border border-gray-200 rounded-lg px-3.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
+                        <button @click="saveNotifEmail('SUPPLIER_EMAIL', notif.supplierEmail)" :disabled="notifSaving"
+                            class="h-10 px-6 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                            <span x-text="notifSaving ? 'Saving...' : 'Save'"></span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2.5">Changeable anytime. New email used for next approved order.
+                    </p>
+                </div>
+            </div>
 
-                    // ─── ERP Methods ─────────────────────────────────────
-                    async fetchCurrentConnection() {
-                        try {
-                            const res = await fetch('/api/erp/current', { headers: getHeaders() });
-                            const data = await res.json();
-                            this.currentName = data.connection_name || 'Python Sample DB';
-                            this.currentType = data.erp_type || 'python_db';
-                            this.connected = data.test_status === 'success';
-                            this.form.connection_name = data.connection_name || 'Python Sample DB';
-                            this.form.erp_type = data.erp_type || 'python_db';
-                            this.form.api_url = data.api_url || '';
-                        } catch (err) {
-                            console.error('Failed to fetch current connection', err);
-                        }
-                    },
+            <div x-show="notifMessage" x-transition
+                :class="notifSuccess ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'"
+                class="border rounded-lg p-3.5 text-sm font-medium text-center" x-text="notifMessage"></div>
+        </div>
 
-                    async testConnection() {
-                        this.testing = true;
-                        this.testResult = '';
-                        try {
-                            const res = await fetch('/api/erp/test-connection', {
-                                method: 'POST',
-                                headers: getHeaders(),
-                                body: JSON.stringify(this.form)
-                            });
-                            const data = await res.json();
-                            this.testSuccess = data.success;
-                            this.testResult = data.message;
-                            this.$nextTick(() => lucide.createIcons());
-                        } catch (err) {
-                            this.testSuccess = false;
-                            this.testResult = 'Connection test failed: ' + err.message;
-                        }
-                        this.testing = false;
-                    },
+    </main>
 
-                    async saveConnection() {
-                        this.saving = true;
-                        try {
-                            const res = await fetch('/api/erp/save-connection', {
-                                method: 'POST',
-                                headers: getHeaders(),
-                                body: JSON.stringify(this.form)
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                                this.testResult = 'Connection saved and activated!';
-                                this.testSuccess = true;
-                                await this.fetchCurrentConnection();
-                                this.$nextTick(() => lucide.createIcons());
-                            } else {
-                                this.testResult = data.message || 'Save failed';
-                                this.testSuccess = false;
-                            }
-                        } catch (err) {
-                            this.testResult = 'Save failed: ' + err.message;
-                            this.testSuccess = false;
-                        }
-                        this.saving = false;
-                    },
 
-                    // ─── Credentials Methods ──────────────────────────────
-                    async checkReauthStatus() {
-                        try {
-                            const res = await fetch('/api/credentials/reauth-status');
-                            const data = await res.json();
-                            this.reauthVerified = data.verified;
-                        } catch (e) { this.reauthVerified = false; }
-                    },
+    <!-- ── Alpine.js Logic ─────────────────────────────────────────────── -->
+    <script>
+        const API_KEY = "{{ api_key }}";
+        const getHeaders = () => ({ "X-API-Key": API_KEY, "Content-Type": "application/json" });
 
-                    async loadCredentials() {
-                        try {
-                            const res = await fetch('/api/credentials/');
-                            const data = await res.json();
-                            this.credentials = data.credentials || [];
-                            await this.checkReauthStatus();
-                            this.$nextTick(() => lucide.createIcons());
-                        } catch (e) {
-                            console.error('Failed to load credentials', e);
-                        }
-                    },
+        function appSettings() {
+            return {
+                tab: new URLSearchParams(window.location.search).get('tab') || 'account',
+                aiProvider: '—',
+                currentName: 'Loading...', currentType: '...', connected: false,
+                testing: false, saving: false, testResult: '', testSuccess: false,
+                form: { connection_name: 'Python Sample DB', erp_type: 'python_db', api_url: '', api_key: '', database_name: '', username: '' },
+                credentials: [], reauthVerified: false,
+                editingCred: null, editValue: '', savingKey: false, saveMessage: '', saveSuccess: false, revealedKeys: {},
+                notif: { supplierEmail: '', ownerEmail: '' }, notifSaving: false, notifMessage: '', notifSuccess: false,
 
-                    async revealKey(key) {
-                        try {
-                            const res = await fetch(`/api/credentials/reveal/${key}`);
-                            if (res.status === 403) {
-                                window.location.href = '/auth/reauth';
-                                return;
-                            }
-                            const data = await res.json();
-                            this.revealedKeys = { ...this.revealedKeys, [key]: data.value || '(empty)' };
-                        } catch (e) {
-                            alert('Failed to reveal key. Please try again.');
-                        }
-                    },
-
-                    openEdit(cred) {
-                        this.editingCred = cred;
-                        this.editValue = '';
-                        this.saveMessage = '';
-                        this.saveSuccess = false;
-                        this.$nextTick(() => lucide.createIcons());
-                    },
-
-                    async saveKey() {
-                        if (!this.editValue.trim()) {
-                            this.saveMessage = 'Value cannot be empty.';
-                            this.saveSuccess = false;
-                            return;
-                        }
-                        this.savingKey = true;
-                        try {
-                            const res = await fetch('/api/credentials/save', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ key: this.editingCred.key, value: this.editValue })
-                            });
-                            const data = await res.json();
-                            if (res.ok) {
-                                this.saveMessage = `✅ ${data.message}`;
-                                this.saveSuccess = true;
-                                // Reload cards
-                                await this.loadCredentials();
-                                setTimeout(() => { this.editingCred = null; this.editValue = ''; this.saveMessage = ''; }, 1500);
-                            } else {
-                                this.saveMessage = `❌ ${data.detail || 'Save failed'}`;
-                                this.saveSuccess = false;
-                            }
-                        } catch (e) {
-                            this.saveMessage = '❌ Network error';
-                            this.saveSuccess = false;
-                        }
-                        this.savingKey = false;
+                async init() {
+                    await this.fetchCurrentConnection();
+                    await this.fetchAIProvider();
+                    await this.checkReauthStatus();
+                    if (this.tab === 'credentials') await this.loadCredentials();
+                    if (this.tab === 'notifications') await this.loadNotifSettings();
+                    if (new URLSearchParams(window.location.search).get('verified')) {
+                        this.tab = 'credentials'; await this.loadCredentials();
                     }
-                }
-            }
-        </script>
-</body>
-
-</html>
-
-<div class="flex items-center justify-between">
-    <div class="flex items-center gap-4">
-        <div class="p-3 rounded-2xl" :class="connected ? 'bg-green-50' : 'bg-gray-50'">
-            <i data-lucide="database" class="w-6 h-6" :class="connected ? 'text-green-600' : 'text-gray-400'"></i>
-        </div>
-        <div>
-            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Active ERP Connection</h3>
-            <p class="text-lg font-bold text-gray-900 mt-0.5" x-text="currentName"></p>
-        </div>
-    </div>
-    <div class="flex items-center gap-3">
-        <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
-            :class="connected ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
-            x-text="connected ? 'Connected' : 'Not Tested'"></span>
-        <span
-            class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-700"
-            x-text="currentType"></span>
-    </div>
-</div>
-</div>
-
-<!-- Connection Form -->
-<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-    <div class="p-6 border-b border-gray-100 bg-gray-50/50">
-        <h2 class="font-bold text-lg text-gray-800 flex items-center gap-2">
-            <i data-lucide="settings" class="w-5 h-5 text-gray-400"></i>
-            Configure ERP Connection
-        </h2>
-        <p class="text-sm text-gray-500 mt-1">Connect your ERP system or use the built-in Python Sample DB for
-            demos.</p>
-    </div>
-
-    <form @submit.prevent="saveConnection()" class="p-6 space-y-6">
-        <!-- Connection Name -->
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Connection
-                Name</label>
-            <input x-model="form.connection_name" type="text" placeholder="e.g., Production Database"
-                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
-        </div>
-
-        <!-- ERP Type -->
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ERP Type</label>
-            <select x-model="form.erp_type"
-                class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all bg-white">
-                <option value="python_db">Python Sample DB (Demo)</option>
-                <option value="sap">SAP S/4HANA</option>
-                <option value="netsuite">Oracle NetSuite</option>
-                <option value="custom">Custom API</option>
-            </select>
-        </div>
-
-        <!-- Real ERP Fields (shown when not python_db) -->
-        <template x-if="form.erp_type !== 'python_db'">
-            <div class="space-y-6 p-5 bg-gray-50 rounded-xl border border-gray-100">
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API
-                        URL</label>
-                    <input x-model="form.api_url" type="url" placeholder="https://your-erp.example.com"
-                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">API Key
-                        / Password</label>
-                    <input x-model="form.api_key" type="password" placeholder="Enter API key or password"
-                        class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Database
-                            Name</label>
-                        <input x-model="form.database_name" type="text" placeholder="e.g., production_db"
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
-                    </div>
-                    <div>
-                        <label
-                            class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Username</label>
-                        <input x-model="form.username" type="text" placeholder="admin@company.com"
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-all">
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <!-- Test Result -->
-        <div x-show="testResult" class="p-4 rounded-xl border text-sm font-medium"
-            :class="testSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'">
-            <div class="flex items-center gap-2">
-                <i :data-lucide="testSuccess ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i>
-                <span x-text="testResult"></span>
-            </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="flex gap-4 pt-2">
-            <button type="button" @click="testConnection()"
-                class="flex-1 px-5 py-3.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95"
-                :disabled="testing">
-                <i data-lucide="wifi" class="w-4 h-4"></i>
-                <span x-text="testing ? 'Testing...' : 'Test Connection'"></span>
-            </button>
-            <button type="submit"
-                class="flex-1 bg-slate-900 hover:bg-black text-white px-5 py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
-                :disabled="saving">
-                <i data-lucide="save" class="w-4 h-4"></i>
-                <span x-text="saving ? 'Saving...' : 'Save & Activate'"></span>
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Architecture Info -->
-<div class="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-    <h3 class="font-bold text-sm text-gray-800 flex items-center gap-2 mb-3">
-        <i data-lucide="info" class="w-4 h-4 text-blue-500"></i>
-        About This Architecture
-    </h3>
-    <p class="text-sm text-gray-600 leading-relaxed">
-        ProcureIQ uses an <strong>ERP Adapter pattern</strong> — the AI agent works with a unified interface
-        regardless of whether you're using the built-in Python Sample DB or a real ERP system.
-        Switch between backends without changing a single line of agent code.
-    </p>
-    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="p-3 bg-gray-50 rounded-xl text-center">
-            <p class="text-xs font-bold text-gray-400 uppercase">Python DB</p>
-            <p class="text-sm font-bold text-gray-800 mt-1">Default</p>
-        </div>
-        <div class="p-3 bg-gray-50 rounded-xl text-center">
-            <p class="text-xs font-bold text-gray-400 uppercase">Custom</p>
-            <p class="text-sm font-bold text-gray-800 mt-1">REST API</p>
-        </div>
-        <div class="p-3 bg-gray-50 rounded-xl text-center">
-            <p class="text-xs font-bold text-gray-400 uppercase">SAP</p>
-            <p class="text-sm font-bold text-gray-800 mt-1">OData</p>
-        </div>
-        <div class="p-3 bg-gray-50 rounded-xl text-center">
-            <p class="text-xs font-bold text-gray-400 uppercase">NetSuite</p>
-            <p class="text-sm font-bold text-gray-800 mt-1">REST</p>
-        </div>
-    </div>
-</div>
-
-<!-- ═══ NOTIFICATIONS TAB ════════════════════════════════════════════ -->
-<div x-show="tab==='notifications'" class="space-y-6">
-
-    <!-- Info banner -->
-    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
-        <span class="text-2xl">📧</span>
-        <div>
-            <p class="font-bold text-blue-900 text-sm">How it works</p>
-            <p class="text-blue-700 text-xs mt-1">
-                When stock drops below the threshold, you get an email with an
-                <strong>Approve Order</strong> button. Click it → the system
-                automatically emails your supplier with a purchase order.
-            </p>
-        </div>
-    </div>
-
-    <!-- Owner Email — READ ONLY from Google Auth -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-        <div class="flex items-center gap-3 mb-4">
-            <div class="bg-green-50 p-2.5 rounded-xl">
-                <i data-lucide="user-check" class="w-5 h-5 text-green-600"></i>
-            </div>
-            <div>
-                <h3 class="font-bold text-gray-900">Owner Alert Email</h3>
-                <p class="text-xs text-gray-500">Low-stock alerts and approval requests are sent here — set by your
-                    Google account</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-            <i data-lucide="lock" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
-            <span class="text-sm font-mono text-gray-700 flex-1">{{ user.email if user else 'Not logged in' }}</span>
-            <span class="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">Google Auth</span>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">This email is tied to your Google account and cannot be changed here.</p>
-    </div>
-
-    <!-- Supplier Email — EDITABLE -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-        <div class="flex items-center gap-3 mb-4">
-            <div class="bg-orange-50 p-2.5 rounded-xl">
-                <i data-lucide="truck" class="w-5 h-5 text-orange-500"></i>
-            </div>
-            <div>
-                <h3 class="font-bold text-gray-900">Supplier Email</h3>
-                <p class="text-xs text-gray-500">Purchase orders are sent here when you approve a reorder</p>
-            </div>
-        </div>
-        <div class="flex gap-3">
-            <input type="email" x-model="notif.supplierEmail" placeholder="supplier@example.com"
-                class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black">
-            <button @click="saveNotifEmail('SUPPLIER_EMAIL', notif.supplierEmail)" :disabled="notifSaving"
-                class="bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50">
-                <span x-text="notifSaving ? 'Saving...' : 'Save'"></span>
-            </button>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">You can change this anytime. The new email will be used for the next
-            approved order.</p>
-    </div>
-
-    <!-- Save feedback message -->
-    <div x-show="notifMessage"
-        :class="notifSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'"
-        class="border rounded-xl p-3 text-sm font-medium text-center transition-all" x-text="notifMessage">
-    </div>
-</div>
-
-</main>
-
-
-<script>
-    function erpSettings() {
-
-        return {
-            currentName: 'Loading...',
-            currentType: '...',
-            connected: false,
-            testing: false,
-            saving: false,
-            testResult: '',
-            testSuccess: false,
-            form: {
-                connection_name: 'Python Sample DB',
-                erp_type: 'python_db',
-                api_url: '',
-                api_key: '',
-                database_name: '',
-                username: ''
-            },
-
-            async init() {
-                await this.fetchCurrentConnection();
-                lucide.createIcons();
-            },
-
-            async fetchCurrentConnection() {
-                try {
-                    const res = await fetch('/api/erp/current', { headers: getHeaders() });
-                    const data = await res.json();
-                    this.currentName = data.connection_name || 'Python Sample DB';
-                    this.currentType = data.erp_type || 'python_db';
-                    this.connected = data.test_status === 'success';
-                    // Pre-fill form
-                    this.form.connection_name = data.connection_name || 'Python Sample DB';
-                    this.form.erp_type = data.erp_type || 'python_db';
-                    this.form.api_url = data.api_url || '';
-                } catch (err) {
-                    console.error('Failed to fetch current connection', err);
-                }
-            },
-
-            async testConnection() {
-                this.testing = true;
-                this.testResult = '';
-                try {
-                    const res = await fetch('/api/erp/test-connection', {
-                        method: 'POST',
-                        headers: getHeaders(),
-                        body: JSON.stringify(this.form)
-                    });
-                    const data = await res.json();
-                    this.testSuccess = data.success;
-                    this.testResult = data.message;
                     this.$nextTick(() => lucide.createIcons());
-                } catch (err) {
-                    this.testSuccess = false;
-                    this.testResult = 'Connection test failed: ' + err.message;
-                }
-                this.testing = false;
-            },
+                },
 
-            async saveConnection() {
-                this.saving = true;
-                try {
-                    const res = await fetch('/api/erp/save-connection', {
-                        method: 'POST',
-                        headers: getHeaders(),
-                        body: JSON.stringify(this.form)
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        this.testResult = 'Connection saved and activated!';
-                        this.testSuccess = true;
-                        await this.fetchCurrentConnection();
+                async fetchAIProvider() {
+                    try { const r = await fetch('/api/ai-status'); const d = await r.json(); this.aiProvider = d.provider || 'Not configured'; }
+                    catch { this.aiProvider = 'Unknown'; }
+                },
+                async fetchCurrentConnection() {
+                    try {
+                        const r = await fetch('/api/erp/current', { headers: getHeaders() }); const d = await r.json();
+                        this.currentName = d.connection_name || 'Python Sample DB'; this.currentType = d.erp_type || 'python_db';
+                        this.connected = d.test_status === 'success';
+                        this.form.connection_name = d.connection_name || 'Python Sample DB'; this.form.erp_type = d.erp_type || 'python_db'; this.form.api_url = d.api_url || '';
+                    } catch (e) { console.error('ERP fetch failed', e); }
+                },
+                async testConnection() {
+                    this.testing = true; this.testResult = '';
+                    try {
+                        const r = await fetch('/api/erp/test-connection', { method: 'POST', headers: getHeaders(), body: JSON.stringify(this.form) });
+                        const d = await r.json(); this.testSuccess = d.success; this.testResult = d.message;
                         this.$nextTick(() => lucide.createIcons());
-                    } else {
-                        this.testResult = data.message || 'Save failed';
-                        this.testSuccess = false;
-                    }
-                } catch (err) {
-                    this.testResult = 'Save failed: ' + err.message;
-                    this.testSuccess = false;
+                    } catch (e) { this.testSuccess = false; this.testResult = 'Test failed: ' + e.message; }
+                    this.testing = false;
+                },
+                async saveConnection() {
+                    this.saving = true;
+                    try {
+                        const r = await fetch('/api/erp/save-connection', { method: 'POST', headers: getHeaders(), body: JSON.stringify(this.form) });
+                        const d = await r.json();
+                        if (d.success) { this.testResult = 'Saved and activated!'; this.testSuccess = true; await this.fetchCurrentConnection(); this.$nextTick(() => lucide.createIcons()); }
+                        else { this.testResult = d.message || 'Save failed'; this.testSuccess = false; }
+                    } catch (e) { this.testResult = 'Save failed: ' + e.message; this.testSuccess = false; }
+                    this.saving = false;
+                },
+                async checkReauthStatus() {
+                    try { const r = await fetch('/api/credentials/reauth-status'); const d = await r.json(); this.reauthVerified = d.verified; }
+                    catch { this.reauthVerified = false; }
+                },
+                async loadCredentials() {
+                    try { const r = await fetch('/api/credentials/'); const d = await r.json(); this.credentials = d.credentials || []; await this.checkReauthStatus(); this.$nextTick(() => lucide.createIcons()); }
+                    catch (e) { console.error('Credentials load failed', e); }
+                },
+                async revealKey(key) {
+                    try {
+                        const r = await fetch(`/api/credentials/reveal/${key}`);
+                        if (r.status === 403) { window.location.href = '/auth/reauth'; return; }
+                        const d = await r.json(); this.revealedKeys = { ...this.revealedKeys, [key]: d.value || '(empty)' };
+                    } catch { alert('Failed to reveal key.'); }
+                },
+                openEdit(cred) {
+                    this.editingCred = cred; this.editValue = ''; this.saveMessage = ''; this.saveSuccess = false;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+                async saveKey() {
+                    if (!this.editValue.trim()) { this.saveMessage = 'Value cannot be empty.'; this.saveSuccess = false; return; }
+                    this.savingKey = true;
+                    try {
+                        const r = await fetch('/api/credentials/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: this.editingCred.key, value: this.editValue }) });
+                        const d = await r.json();
+                        if (r.ok) { this.saveMessage = '✅ ' + d.message; this.saveSuccess = true; await this.loadCredentials(); setTimeout(() => { this.editingCred = null; this.editValue = ''; this.saveMessage = ''; }, 1500); }
+                        else { this.saveMessage = '❌ ' + (d.detail || 'Save failed'); this.saveSuccess = false; }
+                    } catch { this.saveMessage = '❌ Network error'; this.saveSuccess = false; }
+                    this.savingKey = false;
+                },
+                async loadNotifSettings() {
+                    try {
+                        const r = await fetch('/api/credentials/list', { headers: getHeaders() }); const d = await r.json(); const c = d.credentials || [];
+                        this.notif.supplierEmail = (c.find(x => x.key === 'SUPPLIER_EMAIL') || {}).masked_value || '';
+                        this.notif.ownerEmail = (c.find(x => x.key === 'OWNER_EMAIL') || {}).masked_value || '';
+                    } catch (e) { console.error('Notif load failed', e); }
+                },
+                async saveNotifEmail(key, value) {
+                    if (!value || !value.includes('@')) { this.notifMessage = 'Enter a valid email.'; this.notifSuccess = false; return; }
+                    this.notifSaving = true;
+                    try {
+                        const r = await fetch('/api/credentials/save', { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value }) });
+                        const d = await r.json(); this.notifSuccess = d.success; this.notifMessage = d.success ? '✅ Saved!' : '❌ ' + (d.detail || 'Failed');
+                    } catch { this.notifSuccess = false; this.notifMessage = '❌ Network error'; }
+                    this.notifSaving = false; setTimeout(() => this.notifMessage = '', 3000);
                 }
-                this.saving = false;
-            },
-
-            // ── Notifications tab ──────────────────────────────────────
-            notif: { supplierEmail: '', ownerEmail: '' },
-            notifSaving: false,
-            notifMessage: '',
-            notifSuccess: false,
-
-            async loadNotifSettings() {
-                try {
-                    const res = await fetch('/api/credentials/list', { headers: getHeaders() });
-                    const data = await res.json();
-                    const creds = data.credentials || [];
-                    const supplier = creds.find(c => c.key === 'SUPPLIER_EMAIL');
-                    const owner = creds.find(c => c.key === 'OWNER_EMAIL');
-                    this.notif.supplierEmail = supplier ? supplier.masked_value : '';
-                    this.notif.ownerEmail = owner ? owner.masked_value : '';
-                } catch (e) {
-                    console.error('Failed to load notif settings', e);
-                }
-            },
-
-            async saveNotifEmail(key, value) {
-                if (!value || !value.includes('@')) {
-                    this.notifMessage = 'Please enter a valid email address.';
-                    this.notifSuccess = false;
-                    return;
-                }
-                this.notifSaving = true;
-                try {
-                    const res = await fetch('/api/credentials/save', {
-                        method: 'POST',
-                        headers: { ...getHeaders(), 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key, value })
-                    });
-                    const data = await res.json();
-                    this.notifSuccess = data.success;
-                    this.notifMessage = data.success ? '✅ Saved successfully!' : ('❌ ' + (data.detail || 'Save failed'));
-                } catch (e) {
-                    this.notifSuccess = false;
-                    this.notifMessage = '❌ Network error';
-                }
-                this.notifSaving = false;
-                setTimeout(() => this.notifMessage = '', 3000);
             }
         }
-    }
-</script>
+    </script>
 </body>
 
 </html>
