@@ -64,9 +64,17 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app):
+    # Print configuration summary
+    settings.print_startup_summary()
+    
+    # 1. Start Gmail Invoice Agent (Async)
     asyncio.create_task(
         gmail_invoice_agent(get_db, poll_interval=settings.GMAIL_POLL_INTERVAL)
     )
+    
+    # 2. Start Inventory Agent (Threaded)
+    threading.Thread(target=start_agent_loop, daemon=True).start()
+    
     yield
 
 # --- App Initialization ---
@@ -240,7 +248,61 @@ def update_gmail_invoice_status(invoice_id: int, body: dict, db: Session = Depen
     return {"success": True, "id": invoice_id, "status": inv.status}
 
 
+@app.get("/api/alerts")
+def get_stock_alerts(db: Session = Depends(get_db)):
+    """
+    Return live low-stock items directly from the inventory table.
+    Polls every 5 s from the dashboard Stock Alerts panel.
+    """
+    from .models import InventoryItem
+
+    # Use real DB column names (not the Python property aliases)
+    low_items = (
+        db.query(InventoryItem)
+        .filter(InventoryItem.stock_quantity <= InventoryItem.reorder_level)
+        .all()
+    )
+
+    results = []
+    for item in low_items:
+        qty = item.stock_quantity
+        thr = item.reorder_level
+        pct = round(qty / max(thr, 1) * 100)
+        urgency = "CRITICAL" if qty == 0 else ("HIGH" if pct <= 25 else "LOW")
+        results.append({
+            "id":     item.id,
+            "status": "PENDING",        # renderAlerts filters on this
+            "payload": {
+                "item_id":     item.id,
+                "item_name":   item.product_name,
+                "current_qty": qty,
+                "threshold":   thr,
+                "reorder_qty": item.reorder_quantity,
+                "unit_price":  item.cost_price,
+                "sku":         item.sku or "—",
+                "urgency":     urgency,
+                "pct_remaining": pct,
+                "message": (
+                    f"Only {qty} unit(s) left "
+                    f"(threshold: {thr}). "
+                    f"Suggested reorder: {item.reorder_quantity} units."
+                ),
+            },
+        })
+
+    return results
+
+
+@app.post("/api/alerts/trigger")
+async def trigger_stock_check(db: Session = Depends(get_db)):
+    """Manually fire the stock alert check (e.g. from dashboard button)."""
+    from .services.alert_service import process_stock_alerts
+    result = await process_stock_alerts(db)
+    return {"triggered": True, **result}
+
+
 # ── Agent Status ──────────────────────────────────────────────────────────────
+
 
 @app.get("/api/agent-status")
 def get_agent_status():
@@ -304,19 +366,7 @@ if not settings.API_KEY:
     settings.API_KEY = secrets.token_urlsafe(32)
     print(f"\n[WARNING] No API_KEY set in .env - Generated random key: {settings.API_KEY}")
 
-# --- Event Handlers ---
-@app.on_event("startup")
-async def startup_event():
-    # Print config summary
-    settings.print_startup_summary()
-    
-    # Start agent
-    # The instruction "change include_granted_scopes to false in auth.py login flow"
-    # refers to a change in auth.py, not main.py.
-    # The provided code snippet for main.py's startup_event seems to be a misplacement
-    # of auth.py logic and would cause a NameError for 'flow'.
-    # Therefore, this line is not added to maintain syntactical correctness of main.py.
-    threading.Thread(target=start_agent_loop, daemon=True).start()
+
 
 # --- API Routes ---
 

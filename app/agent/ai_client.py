@@ -3,12 +3,18 @@ import time
 import logging
 import json
 import os
+import re
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
-# External SDKs
-import google.generativeai as genai
+# External SDKs — use new google.genai SDK
+try:
+    import google.genai as genai
+    _GENAI_NEW = True
+except ImportError:
+    import google.generativeai as genai  # legacy fallback
+    _GENAI_NEW = False
 from openai import AsyncOpenAI
 
 logger = logging.getLogger("AIClient")
@@ -51,10 +57,14 @@ class AIClient:
             
         # 2. Initialize Gemini Direct (Secondary)
         self.gemini_model = None
+        self.gemini_client = None
         if self.gemini_key:
-            genai.configure(api_key=self.gemini_key)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-            logger.info("Gemini 1.5 Flash (Direct) initialized.")
+            if _GENAI_NEW:
+                self.gemini_client = genai.Client(api_key=self.gemini_key)
+            else:
+                genai.configure(api_key=self.gemini_key)
+                self.gemini_model = genai.GenerativeModel("gemini-1.5-flash-8b")
+            logger.info("Gemini Flash-8b (Direct) initialized.")
             
         # 3. Initialize OpenAI Direct (Fallback)
         self.openai_client = None
@@ -62,8 +72,9 @@ class AIClient:
             self.openai_client = AsyncOpenAI(api_key=self.openai_key)
             logger.info("GPT-4o (Direct) initialized.")
 
-        self.primary_model = "google/gemini-2.0-flash-001"
-        self.fallback_model = "google/gemini-2.5-flash-preview"
+        self.primary_model = "google/gemini-2.0-flash-exp:free"   # valid OpenRouter model
+        self.fallback_model = "mistralai/mistral-small-3.1-24b-instruct:free"
+        self._genai_model_name = "gemini-2.0-flash-lite"          # google.genai direct
 
         # Cost tracking (approximate)
         self.costs = {
@@ -182,33 +193,43 @@ class AIClient:
         )
 
     async def _call_gemini(self, prompt, system, json_mode):
-        """Gemini 1.5 Pro Implementation (Direct)."""
-        config = genai.types.GenerationConfig(
-            temperature=0.1, # Forced to 0.1 for reliability
-            response_mime_type="application/json" if json_mode else "text/plain"
-        )
-        
+        """Gemini Implementation (Direct) — supports both old and new SDK."""
         full_prompt = f"System: {system}\n\n{prompt}" if system else prompt
-        
         start = time.time()
-        # Non-async SDK - wrap in thread
-        response = await asyncio.to_thread(
-            self.gemini_model.generate_content,
-            full_prompt,
-            generation_config=config
-        )
-        
-        latency = int((time.time() - start) * 1000)
-        tokens = response.usage_metadata.total_token_count if response.usage_metadata else 0
-        
-        # Rough cost calculation
-        cost = (tokens / 1000) * self.costs["gemini-1.5-pro"]["input"]
 
+        if _GENAI_NEW and self.gemini_key:
+            import google.genai as g
+            client = g.Client(api_key=self.gemini_key)
+            resp_mime = "application/json" if json_mode else "text/plain"
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=self._genai_model_name,
+                contents=full_prompt,
+                config={"temperature": 0.1, "response_mime_type": resp_mime},
+            )
+            text = response.text
+            latency = int((time.time() - start) * 1000)
+            tokens = getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0
+        else:
+            config = genai.types.GenerationConfig(
+                temperature=0.1,
+                response_mime_type="application/json" if json_mode else "text/plain"
+            )
+            response = await asyncio.to_thread(
+                self.gemini_model.generate_content,
+                full_prompt,
+                generation_config=config
+            )
+            text = response.text
+            latency = int((time.time() - start) * 1000)
+            tokens = getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0
+
+        cost = (tokens / 1000) * 0.00015  # flash-8b pricing
         logger.info(f"Gemini Direct call: {tokens} tokens, {latency}ms")
-        
+
         return AIResponse(
-            content=response.text,
-            model_used="gemini-1.5-pro-direct",
+            content=text,
+            model_used=self._genai_model_name,
             latency_ms=latency,
             tokens_used=tokens,
             cost_usd=cost,
@@ -246,13 +267,46 @@ class AIClient:
         )
 
     def _rule_based_fallback(self, prompt: str, start_time: float) -> AIResponse:
-        """Deterministic fallback when all APIs fail."""
+        """Smart rule-based fallback — extracts real data from prompt when AI fails."""
         logger.error("All AI APIs failed - using rule-based fallback")
-        
+
         content = "Error: System unable to process request at this time."
-        if "invoice" in prompt.lower():
-            content = json.dumps({"is_procurement": True, "doc_type": "invoice", "confidence": 0.5, "error": "AI failed"})
-            
+
+        if "invoice" in prompt.lower() or "vendor" in prompt.lower():
+            # Extract what we can via regex
+            vendor = None
+            m = re.search(r'FROM:\s*(.+)', prompt, re.IGNORECASE)
+            if m:
+                vendor = m.group(1).strip()[:60]
+
+            amount = 0.0
+            for pat in [
+                r'\$\s*([\d,]+\.\d{2})',
+                r'(?:amount|total)[:\s]+\$?\s*([\d,]+\.?\d*)',
+            ]:
+                am = re.search(pat, prompt, re.IGNORECASE)
+                if am:
+                    try:
+                        amount = float(am.group(1).replace(',', ''))
+                        break
+                    except ValueError:
+                        pass
+
+            inv_num = "UNKNOWN"
+            im = re.search(r'(?:invoice|inv)\s*#?\s*:?\s*([A-Z0-9\-]{3,20})', prompt, re.IGNORECASE)
+            if im:
+                inv_num = im.group(1)
+
+            content = json.dumps({
+                "is_procurement": True,
+                "doc_type": "invoice",
+                "vendor_name": vendor,
+                "invoice_number": inv_num,
+                "amount": amount,
+                "confidence": 0.4,
+                "error": "AI quota exceeded — regex fallback"
+            })
+
         return AIResponse(
             content=content,
             model_used="rule_based",

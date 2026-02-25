@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     GEMINI_API_KEY: Optional[str] = Field(default=None, description="Google Gemini API key")
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API key (fallback)")
-    AI_MODEL_PRIMARY: str = Field(default="gemini-1.5-pro", description="Primary AI model")
+    OPENROUTER_API_KEY: Optional[str] = Field(default=None, description="OpenRouter API key (primary invoice AI)")
+    OPENROUTER_MODEL: str = Field(default="google/gemini-2.0-flash-lite:free", description="OpenRouter model for invoice extraction")
+    AI_TEMPERATURE: float = Field(default=0.0, description="Temperature for AI extraction (0=deterministic)")
+    AI_MODEL_PRIMARY: str = Field(default="gemini-1.5-flash", description="Primary AI model")
     AI_MODEL_FALLBACK: str = Field(default="gpt-4o", description="Fallback AI model")
     
     # ═══════════════════════════════════════════

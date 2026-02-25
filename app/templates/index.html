@@ -315,29 +315,81 @@
         function renderAlerts(alerts) {
             const list = document.getElementById('alerts-list');
             const pending = alerts.filter(a => a.status === 'pending' || a.status === 'PENDING');
+
+            // Update header badge count
+            const header = list.closest('.bg-white')?.querySelector('h2');
+            if (header) {
+                const badge = header.querySelector('.alert-badge');
+                if (pending.length > 0) {
+                    if (!badge) {
+                        const b = document.createElement('span');
+                        b.className = 'alert-badge ml-auto h-5 min-w-[20px] px-1.5 bg-red-50 text-red-600 border border-red-100 text-[10px] font-semibold rounded-full inline-flex items-center justify-center';
+                        b.textContent = pending.length;
+                        header.appendChild(b);
+                    } else {
+                        badge.textContent = pending.length;
+                    }
+                } else if (badge) {
+                    badge.remove();
+                }
+            }
+
             if (pending.length === 0) {
                 list.innerHTML = `
                     <div class="p-12 text-center flex flex-col items-center justify-center gap-2 min-h-[180px]">
-                        <i data-lucide="bell-off" class="w-6 h-6 text-gray-200"></i>
-                        <p class="text-gray-400 text-sm">No active alerts detected.</p>
+                        <i data-lucide="check-circle-2" class="w-6 h-6 text-emerald-300"></i>
+                        <p class="text-gray-400 text-sm">All stock levels healthy.</p>
                     </div>`;
                 lucide.createIcons(); return;
             }
+
             list.innerHTML = pending.map(a => {
-                const payload = a.payload || {};
+                const p = a.payload || {};
+                const qty = p.current_qty ?? 0;
+                const thr = p.threshold ?? 1;
+                const pct = p.pct_remaining ?? Math.round(qty / Math.max(thr, 1) * 100);
+                const urgency = p.urgency || (qty === 0 ? 'CRITICAL' : pct <= 25 ? 'HIGH' : 'LOW');
+
+                const urgencyStyle = urgency === 'CRITICAL'
+                    ? { dot: 'bg-red-500', badge: 'bg-red-50 text-red-600 border-red-200', bar: 'bg-red-400', label: 'CRITICAL' }
+                    : urgency === 'HIGH'
+                        ? { dot: 'bg-amber-400', badge: 'bg-amber-50 text-amber-600 border-amber-200', bar: 'bg-amber-400', label: 'HIGH' }
+                        : { dot: 'bg-orange-400', badge: 'bg-orange-50 text-orange-600 border-orange-200', bar: 'bg-orange-300', label: 'LOW' };
+
+                const barWidth = Math.min(pct, 100);
                 return `
                 <div class="p-5 border-b border-gray-100 last:border-0">
                     <div class="flex justify-between items-start mb-2">
                         <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0"></span>
-                            <span class="text-xs font-semibold text-gray-900">${payload.item_name || 'System Item'} Stock Alert</span>
+                            <span class="w-2 h-2 rounded-full ${urgencyStyle.dot} animate-pulse flex-shrink-0"></span>
+                            <span class="text-xs font-semibold text-gray-900">${p.item_name || 'Unknown Item'}</span>
+                            ${p.sku && p.sku !== '—' ? `<span class="text-[10px] text-gray-400 font-mono">${p.sku}</span>` : ''}
                         </div>
-                        <span class="h-5 px-1.5 bg-amber-50 text-amber-600 text-[10px] font-medium rounded border border-amber-100 inline-flex items-center">SMS Sent</span>
+                        <span class="h-5 px-1.5 text-[10px] font-medium rounded border inline-flex items-center ${urgencyStyle.badge}">${urgencyStyle.label}</span>
                     </div>
-                    <p class="text-xs text-gray-500 leading-relaxed border-l-2 border-amber-200 pl-3 ml-4 mb-3">"${payload.message || 'Threshold reached.'}"</p>
-                    <button onclick="approveRefill(${a.id})" class="w-full h-9 bg-gray-900 text-white text-[11px] font-medium rounded-lg hover:bg-gray-800 transition-colors active:scale-[0.98]">Confirm Replenishment</button>
+
+                    <!-- Stock bar -->
+                    <div class="ml-4 mb-3">
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1">
+                            <span>${qty} units remaining</span>
+                            <span>Threshold: ${thr}</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full ${urgencyStyle.bar} transition-all duration-500" style="width:${barWidth}%"></div>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-gray-500 leading-relaxed border-l-2 border-gray-200 pl-3 ml-4 mb-3">
+                        Suggest reordering <strong>${p.reorder_qty || '—'} units</strong>
+                        ${p.unit_price ? `· Est. cost: <strong>$${(p.reorder_qty * p.unit_price).toLocaleString()}</strong>` : ''}
+                    </p>
+                    <button onclick="approveRefill(${a.id})"
+                        class="w-full h-9 bg-gray-900 text-white text-[11px] font-medium rounded-lg hover:bg-gray-800 transition-colors active:scale-[0.98]">
+                        Confirm Replenishment
+                    </button>
                 </div>`;
             }).join('');
+            lucide.createIcons();
         }
 
         // ── Invoice Actions ──────────────────────────────────────────────

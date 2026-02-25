@@ -91,11 +91,70 @@ def _is_duplicate(db, msg_id: str, subject: str, sender: str) -> bool:
     return by_content is not None
 
 
+def _is_real_invoice(subject: str, sender: str) -> bool:
+    """
+    Final safety gate — called inside _save_to_db to prevent ANY false positive
+    from being written to gmail_invoices, regardless of which code path triggered the save.
+    """
+    subj = (subject or "").lower()
+    sndr = (sender  or "").lower()
+
+    # Hard exclusions — reject immediately
+    EXCL_PHRASES = [
+        "did you just log in", "new sign-in", "new login", "login attempt",
+        "security alert", "unusual sign", "suspicious activity",
+        "verify your account", "confirm your email", "password reset",
+        "account recovery", "payment declined", "payment method", "payment failed",
+        "linkedin", "subscription cancelled", "free trial", "newsletter",
+        "unsubscribe", "weekly digest", "rti reply", "cgl", "vacancy",
+        "quota digest", "lakh appeared", "otp", "one-time password",
+        "verification code", "job alert", "hiring", "apply now",
+        "social media executive", "internship", "new message", "new follower",
+        "welcome to", "indeed", "naukri", "glassdoor", "shipping update",
+        "your order has", "track your", "delivery", "adobe acrobat sign",
+        "sign and return",
+    ]
+    EXCL_SENDERS = [
+        "noreply@linkedin", "notification@linkedin", "jobs-noreply",
+        "alerts@google", "no-reply@accounts.google", "security@",
+        "indeed.com", "naukri.com", "adobesign", "docusign",
+    ]
+
+    for phrase in EXCL_PHRASES:
+        if phrase in subj:
+            logger.debug(f"_save_to_db: blocked (exclusion '{phrase}') — {subject[:70]}")
+            return False
+
+    for excl_sender in EXCL_SENDERS:
+        if excl_sender in sndr:
+            logger.debug(f"_save_to_db: blocked (sender '{excl_sender}') — {subject[:70]}")
+            return False
+
+    # Require at least 1 strong invoice keyword in the subject
+    STRONG = [
+        "invoice", "bill", "receipt", "purchase order", "tax invoice",
+        "proforma", "credit note", "debit note", "remittance",
+        "amount due", "payment due", "balance due",
+    ]
+    has_signal = any(kw in subj for kw in STRONG)
+    if not has_signal:
+        logger.debug(f"_save_to_db: blocked (no invoice signal) — {subject[:70]}")
+        return False
+
+    return True
+
+
 def _save_to_db(db, msg_id, subject, sender, amount, inv_number,
                 inv_date, vendor_name, confidence, received_at, found_in_spam) -> bool:
     from ..models import GmailInvoice
+
+    # ── Permanent invoice guard ── blocks ALL false positives at DB level ──────
+    if not _is_real_invoice(subject, sender):
+        return False
+
     if _is_duplicate(db, msg_id, subject or "", sender or ""):
         return False
+
     row = GmailInvoice(
         message_id=msg_id,
         subject=(subject or "")[:255],
@@ -117,6 +176,7 @@ def _save_to_db(db, msg_id, subject, sender, amount, inv_number,
     return True
 
 
+
 # ── Core scan ─────────────────────────────────────────────────────────────────
 
 def _scan_label(service, db, label: str, after_date: str,
@@ -126,7 +186,8 @@ def _scan_label(service, db, label: str, after_date: str,
 
     try:
         result = service.users().messages().list(
-            userId="me", labelIds=[label], q=f"after:{after_date}", maxResults=max_results
+            userId="me", labelIds=[label], q=f"after:{after_date}", 
+            maxResults=max_results, includeSpamTrash=True
         ).execute()
         messages = result.get("messages", [])
     except Exception as e:
@@ -155,11 +216,57 @@ def _scan_label(service, db, label: str, after_date: str,
             # Combine: subject + body + PDF text
             full_text = f"Subject: {subject}\nFrom: {sender}\n\n{body}\n\n{pdf_text}"
 
-            # AI extraction (LangChain + Gemini)
+            # ── Pre-filter: reject obvious non-invoices before calling AI ─────
+            subject_lower = subject.lower()
+            body_preview  = body[:1500].lower()
+            sender_lower  = sender.lower()
+            combined      = f"{subject_lower} {body_preview}"
+
+            # Hard exclusion phrases — immediate reject
+            EXCL = [
+                "did you just log in", "new sign-in", "new login", "login attempt",
+                "security alert", "unusual sign", "suspicious activity",
+                "verify your account", "confirm your email", "password reset",
+                "account recovery", "payment declined", "payment method",
+                "payment failed", "linkedin", "subscription cancelled",
+                "free trial", "newsletter", "unsubscribe", "weekly digest",
+                "rti reply", "cgl", "vacancy", "quota digest", "lakh appeared",
+                "otp", "one-time password", "verification code",
+                "job alert", "hiring", "apply now", "social media executive",
+                "internship", "new message", "new follower", "welcome to",
+                "indeed", "naukri", "glassdoor",
+            ]
+            EXCL_SENDERS = [
+                "noreply@linkedin", "notification@linkedin", "jobs-noreply",
+                "alerts@google", "no-reply@accounts.google", "security@",
+                "indeed.com", "naukri.com",
+            ]
+
+            is_excluded = (
+                any(p in combined   for p in EXCL) or
+                any(s in sender_lower for s in EXCL_SENDERS)
+            )
+            if is_excluded:
+                logger.debug(f"Gmail agent: pre-filter REJECTED — {subject[:70]}")
+                continue
+
+            # Require at least ONE strong invoice signal in subject or body
+            STRONG_KWS = [
+                "invoice", "bill", "receipt", "purchase order", "tax invoice",
+                "amount due", "total amount", "payment due", "balance due",
+                "remit payment", "proforma", "credit note", "debit note",
+            ]
+            has_signal = any(kw in combined for kw in STRONG_KWS)
+            if not has_signal:
+                logger.debug(f"Gmail agent: pre-filter no invoice signal — {subject[:70]}")
+                continue
+
+            # ── AI extraction (LangChain + Gemini) ─────────────────────────────
             inv_data = extract_invoice_data(full_text)
 
-            if not inv_data.is_invoice or inv_data.confidence < 0.4:
-                continue  # Not an invoice — skip
+            if not inv_data.is_invoice or inv_data.confidence < 0.6:
+                logger.debug(f"Gmail agent: skipped (is_invoice={inv_data.is_invoice}, conf={inv_data.confidence:.1%}) — {subject[:60]}")
+                continue  # Not a confident invoice — skip
 
             try:
                 received_at = datetime.strptime(date_str[:25].strip(), "%a, %d %b %Y %H:%M:%S")
@@ -225,7 +332,8 @@ async def gmail_invoice_agent(get_db_func, poll_interval: int = 60):
                     db.close()
             else:
                 agent_state["status"] = "waiting_credentials"
-                await asyncio.sleep(300)
+                logger.warning("Gmail: service unavailable — retrying in 30s")
+                await asyncio.sleep(30)
                 continue
 
         except Exception as e:

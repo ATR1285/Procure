@@ -63,7 +63,11 @@ def start_agent_loop():
     logger.info(f"[AGENT] Poll interval: {wait_time}s (backoff to 30s when idle)")
     logger.info("=" * 60)
     
+    _worker_state["status"] = "running"
+    
     while True:
+        _worker_state["last_run"] = datetime.datetime.now().isoformat()
+        _worker_state["cycles_today"] += 1
         # FRESH session every cycle — always sees latest committed state
         db = SessionLocal()
         try:
@@ -223,18 +227,11 @@ def start_agent_loop():
             break
         except Exception as e:
             logger.error(f"[AGENT] Loop error: {e}")
-            try:
-                error_log = models.Event(
-                    event_type="AGENT_ERROR",
-                    payload={"error": str(e), "timestamp": datetime.datetime.now().isoformat()},
-                    status="FAILED"
-                )
-                db.add(error_log)
-                db.commit()
-            except:
-                pass
+            _worker_state["last_error"] = str(e)
+            _worker_state["status"] = "error"
             time.sleep(wait_time)
             wait_time = min(wait_time * 2, 30)
+            _worker_state["status"] = "running"
         finally:
             # ALWAYS close the session — next cycle gets a fresh one
             db.close()

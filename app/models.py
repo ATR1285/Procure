@@ -145,17 +145,33 @@ class InventoryItem(Base):
     def name(self):
         return self.product_name
 
+    @name.setter
+    def name(self, value):
+        self.product_name = value
+
     @property
     def quantity(self):
         return self.stock_quantity
+
+    @quantity.setter
+    def quantity(self, value):
+        self.stock_quantity = value
 
     @property
     def reorder_threshold(self):
         return self.reorder_level
 
+    @reorder_threshold.setter
+    def reorder_threshold(self, value):
+        self.reorder_level = value
+
     @property
     def unit_price(self):
         return self.cost_price
+
+    @unit_price.setter
+    def unit_price(self, value):
+        self.cost_price = value
 
     @property
     def last_checked(self):
