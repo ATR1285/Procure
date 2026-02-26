@@ -173,6 +173,29 @@ def _save_to_db(db, msg_id, subject, sender, amount, inv_number,
     db.add(row)
     db.commit()
     logger.info(f"Gmail agent: saved — {(subject or '')[:60]} | ${amount} | conf={confidence:.0%}")
+
+    # ── Bridge: Create INVOICE_RECEIVED event for the autonomous worker ──
+    try:
+        from ..models import Event
+        event = Event(
+            event_type="INVOICE_RECEIVED",
+            status="PENDING",
+            payload={
+                "vendorName": (vendor_name or "")[:255],
+                "invoiceAmount": amount or 0.0,
+                "invoiceNumber": inv_number or f"GMAIL-{msg_id[:8]}",
+                "raw_text": (subject or "") + " " + (sender or ""),
+                "extraction_confidence": confidence,
+                "source": "gmail_agent",
+                "gmail_invoice_id": row.id,
+            }
+        )
+        db.add(event)
+        db.commit()
+        logger.info(f"Gmail agent: created INVOICE_RECEIVED event for worker (gmail_inv={row.id})")
+    except Exception as e:
+        logger.error(f"Gmail agent: failed to create event — {e}")
+
     return True
 
 
@@ -180,7 +203,7 @@ def _save_to_db(db, msg_id, subject, sender, amount, inv_number,
 # ── Core scan ─────────────────────────────────────────────────────────────────
 
 def _scan_label(service, db, label: str, after_date: str,
-                found_in_spam: bool, max_results: int = 20) -> int:
+                found_in_spam: bool, max_results: int = 5) -> int:
     """Scan one Gmail label, classify with AI, extract from PDFs, save invoices."""
     from ..services.ai_extractor import extract_invoice_data, extract_text_from_pdf
 
@@ -264,8 +287,8 @@ def _scan_label(service, db, label: str, after_date: str,
             # ── AI extraction (LangChain + Gemini) ─────────────────────────────
             inv_data = extract_invoice_data(full_text)
 
-            if not inv_data.is_invoice or inv_data.confidence < 0.6:
-                logger.debug(f"Gmail agent: skipped (is_invoice={inv_data.is_invoice}, conf={inv_data.confidence:.1%}) — {subject[:60]}")
+            if not inv_data or not inv_data.is_invoice or inv_data.confidence < 0.6:
+                logger.debug(f"Gmail agent: skipped (is_invoice={getattr(inv_data, 'is_invoice', 'N/A')}, conf={getattr(inv_data, 'confidence', 0.0):.1%}) — {subject[:60]}")
                 continue  # Not a confident invoice — skip
 
             try:
@@ -282,7 +305,11 @@ def _scan_label(service, db, label: str, after_date: str,
                 saved += 1
 
         except Exception as e:
-            logger.warning(f"Gmail agent: error on msg {ref.get('id')} — {e}")
+            err_str = str(e)
+            if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                logger.warning(f"Gmail agent: Gemini rate limit hit — pausing scan for {label}")
+                break  # Stop this scan cycle — don't burn more quota
+            logger.warning(f"Gmail agent: skip {ref['id']} — {e}")
 
     return saved
 

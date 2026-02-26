@@ -166,6 +166,25 @@
                 </div>
             </div>
 
+            <!-- ── Processed Invoices (Decision Engine) ──────────────────────── -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-50 flex justify-between items-center">
+                    <h2 class="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="brain" class="w-4 h-4 text-purple-400"></i> Processed Invoices
+                        <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wide ml-1">Decision
+                            Engine</span>
+                    </h2>
+                </div>
+                <div id="processed-invoices-list"
+                    class="divide-y divide-gray-100 max-h-[340px] overflow-y-auto custom-scroll">
+                    <div class="p-10 text-center flex flex-col items-center justify-center gap-2 min-h-[120px]">
+                        <div class="w-5 h-5 border-2 border-gray-200 border-t-purple-400 rounded-full animate-spin">
+                        </div>
+                        <p class="text-gray-400 text-sm">Loading processed invoices...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Analytics Stats ──────────────────────────────────────────── -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div
@@ -249,6 +268,55 @@
             } catch (err) { console.error("Gmail invoices fetch failed", err); }
         }
 
+        async function fetchProcessedInvoices() {
+            try {
+                const res = await fetch('/api/invoices', { headers: getHeaders() });
+                const data = await res.json();
+                renderProcessedInvoices(data);
+            } catch (err) { console.error("Processed invoices fetch failed", err); }
+        }
+
+        function renderProcessedInvoices(invoices) {
+            const list = document.getElementById('processed-invoices-list');
+            if (!invoices || invoices.length === 0) {
+                list.innerHTML = `
+                    <div class="p-8 text-center flex flex-col items-center justify-center gap-2 min-h-[100px]">
+                        <i data-lucide="inbox" class="w-5 h-5 text-gray-200"></i>
+                        <p class="text-gray-400 text-sm">No processed invoices yet</p>
+                        <p class="text-gray-300 text-xs">Invoices appear here after the Decision Engine runs</p>
+                    </div>`;
+                lucide.createIcons(); return;
+            }
+            const getConfColor = (s) => s >= 85 ? 'text-emerald-600' : s >= 60 ? 'text-amber-600' : 'text-red-500';
+            const getStatusCls = (s) => {
+                const m = { 'APPROVED': 'bg-emerald-50 text-emerald-700 border-emerald-200', 'REJECTED': 'bg-red-50 text-red-600 border-red-200', 'PROCESSING': 'bg-purple-50 text-purple-600 border-purple-200' };
+                return m[s] || 'bg-gray-50 text-gray-600 border-gray-200';
+            };
+            list.innerHTML = invoices.map(inv => {
+                const vendor = inv.extracted_data?.raw_vendor || inv.extracted_data?.vendorName || 'Unknown';
+                const conf = inv.confidence_score || 0;
+                return `
+                <a href="/invoice/${inv.id}" class="block px-6 py-4 hover:bg-purple-50/30 transition-colors cursor-pointer">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <span class="text-sm font-medium text-gray-900">${inv.invoice_number}</span>
+                                <span class="h-5 px-1.5 rounded text-[9px] font-medium border inline-flex items-center ${getStatusCls(inv.status)}">${inv.status.replace('_', ' ')}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 flex items-center gap-3">
+                                <span>🏢 ${vendor}</span>
+                                <span>💰 ₹${(inv.total_amount || 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-lg font-bold ${getConfColor(conf)}">${conf}%</span>
+                            <p class="text-[10px] text-gray-400">confidence</p>
+                        </div>
+                    </div>
+                </a>`;
+            }).join('');
+            lucide.createIcons();
+        }
 
 
         async function fetchAlerts() {
@@ -278,7 +346,7 @@
             window._lastInvoiceScan = new Date().toISOString();
             list.innerHTML = invoices.map(inv => {
                 const date = inv.received_at ? new Date(inv.received_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-                const amount = inv.amount > 0 ? `$${inv.amount.toLocaleString()}` : 'N/A';
+                const amount = inv.amount > 0 ? `₹${inv.amount.toLocaleString()}` : 'N/A';
                 const spamBadge = inv.found_in_spam ? `<span class="h-5 px-1.5 rounded text-[9px] font-medium bg-red-50 text-red-500 border border-red-100 inline-flex items-center">Spam</span>` : '';
                 const statusStyle = getStatusStyle(inv.status);
                 const actions = (inv.status === 'PENDING_REVIEW') ? `
@@ -510,7 +578,7 @@
                 const d = await res.json();
                 const totalInv = d.total_invoices ?? 0;
                 document.getElementById('an-total').textContent = totalInv || '—';
-                document.getElementById('an-spend').textContent = d.total_approved_spend > 0 ? `$${d.total_approved_spend.toLocaleString()}` : '$0';
+                document.getElementById('an-spend').textContent = d.total_approved_spend > 0 ? `₹${d.total_approved_spend.toLocaleString()}` : '₹0';
                 document.getElementById('an-rate').textContent = `${d.approval_rate ?? 0}%`;
                 document.getElementById('an-weekly').textContent = `${d.invoices_last_7_days} this week`;
 
@@ -539,7 +607,7 @@
                                     <div class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width:${Math.round(v.spend / maxSpend * 100)}%"></div>
                                 </div>
                             </div>
-                            <span class="text-sm font-medium text-gray-700 whitespace-nowrap">$${v.spend.toLocaleString()}</span>
+                            <span class="text-sm font-medium text-gray-700 whitespace-nowrap">₹${v.spend.toLocaleString()}</span>
                         </div>`).join('');
                 }
             } catch (err) { console.error('Analytics fetch failed', err); }
@@ -643,10 +711,10 @@
         }
 
         // ── Init & Polling ───────────────────────────────────────────────
-        setInterval(() => { fetchInvoices(); fetchAlerts(); }, 5000);
+        setInterval(() => { fetchInvoices(); fetchAlerts(); fetchProcessedInvoices(); }, 5000);
         setInterval(() => { fetchAnalytics(); fetchAgentStatus(); fetchSystemState(); }, 15000);
         window.onload = () => {
-            fetchInvoices(); fetchAlerts();
+            fetchInvoices(); fetchAlerts(); fetchProcessedInvoices();
             fetchERPStatus(); fetchAIStatus();
             fetchAnalytics(); fetchAgentStatus();
             fetchSystemState();

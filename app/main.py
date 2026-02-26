@@ -192,6 +192,20 @@ def inventory_page(request: Request):
         "user": user
     })
 
+@app.get("/invoice/{invoice_id}", dependencies=[Depends(verify_google_auth)])
+def invoice_detail_page(invoice_id: int, request: Request, db: Session = Depends(get_db)):
+    """Invoice detail page — three-way match visualization."""
+    user = request.session.get("user")
+    invoice = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return templates.TemplateResponse("invoice_detail.html", {
+        "request": request,
+        "invoice": invoice,
+        "api_key": settings.API_KEY,
+        "user": user
+    })
+
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""

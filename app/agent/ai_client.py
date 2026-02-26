@@ -59,12 +59,13 @@ class AIClient:
         self.gemini_model = None
         self.gemini_client = None
         if self.gemini_key:
+        if self.gemini_key:
             if _GENAI_NEW:
                 self.gemini_client = genai.Client(api_key=self.gemini_key)
             else:
                 genai.configure(api_key=self.gemini_key)
-                self.gemini_model = genai.GenerativeModel("gemini-1.5-flash-8b")
-            logger.info("Gemini Flash-8b (Direct) initialized.")
+                self.gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+            logger.info("Gemini 2.0 Flash (Direct) initialized.")
             
         # 3. Initialize OpenAI Direct (Fallback)
         self.openai_client = None

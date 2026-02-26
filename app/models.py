@@ -52,7 +52,7 @@ class Invoice(Base):
     invoice_number = Column(String, index=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=True)
     total_amount = Column(Float)
-    currency = Column(String, default="USD")
+    currency = Column(String, default="INR")
     invoice_date = Column(DateTime, default=datetime.datetime.utcnow)
     status = Column(String, default="PENDING")  # PENDING, PROCESSING, APPROVED, REJECTED, ESCALATED
     extracted_data = Column(JSON, default={})
