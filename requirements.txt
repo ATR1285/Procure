@@ -43,6 +43,10 @@ aiohttp==3.9.3
 httpx>=0.26.0
 websockets==12.0
 
+# Database Drivers
+pymysql>=1.1.0
+cryptography>=42.0.0
+
 # Monitoring
 sentry-sdk[fastapi]>=1.40.0
 slowapi==0.1.9
