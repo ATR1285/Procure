@@ -411,7 +411,12 @@ def get_analytics(db: Session = Depends(get_db)):
 
 
 # --- Database & Security ---
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+    print("[STARTUP] Database tables created successfully")
+except Exception as e:
+    print(f"[STARTUP] WARNING: Database connection failed: {e}")
+    print("[STARTUP] App will start but database features won't work until DATABASE_URL is fixed")
 
 # API Key Logic (for server logs)
 if not settings.API_KEY:
