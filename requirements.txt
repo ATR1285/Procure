@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════
-# Procure-IQ Production Dependencies
+# Procure-IQ Production Dependencies v2
 # ═══════════════════════════════════════════
 
 # Core Framework
