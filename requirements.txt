@@ -48,6 +48,7 @@ pymysql>=1.1.0
 cryptography>=42.0.0
 
 # Monitoring & Rate Limiting
+prometheus_client>=0.20.0
 sentry-sdk[fastapi]>=1.40.0
 slowapi>=0.1.9
 
