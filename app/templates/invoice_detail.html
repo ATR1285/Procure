@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.invoice_number }} — ProcureIQ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 99px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- ── Nav ──────────────────────────────────────────────────────── -->
+    <nav class="bg-white border-b border-gray-100 px-6 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="/" class="text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1.5 text-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Dashboard
+            </a>
+            <span class="text-gray-200">|</span>
+            <span class="text-sm font-semibold text-gray-800">{{ invoice.invoice_number }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="status-badge"
+                class="h-6 px-2.5 rounded-md text-[10px] font-semibold uppercase tracking-wide inline-flex items-center"></span>
+        </div>
+    </nav>
+
+    <!-- ── Main ─────────────────────────────────────────────────────── -->
+    <main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
+
+        <!-- Header -->
+        <div class="flex items-start justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ invoice.invoice_number }}</h1>
+                <p class="text-sm text-gray-400 mt-1">Processed by Autonomous Agent</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-gray-400 uppercase tracking-wide">Confidence</p>
+                <p id="confidence-score" class="text-3xl font-bold mt-0.5">—</p>
+            </div>
+        </div>
+
+        <!-- ── Three-Way Match Grid ─────────────────────────────────── -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+            <!-- Invoice Panel -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
+                    <h3 class="text-[13px] font-semibold text-gray-900 uppercase tracking-wide">Invoice</h3>
+                    <span
+                        class="ml-auto h-5 px-1.5 rounded text-[9px] font-medium bg-blue-50 text-blue-600 border border-blue-100 inline-flex items-center">Source</span>
+                </div>
+                <div class="p-5 space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Number</span>
+                        <span class="font-medium text-gray-900">{{ invoice.invoice_number }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Vendor</span>
+                        <span id="vendor-name" class="font-medium text-gray-900">Loading...</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Amount</span>
+                        <span class="font-semibold text-gray-900">₹{{ invoice.total_amount }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Date</span>
+                        <span class="font-medium text-gray-700">{{ invoice.invoice_date or '—' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Currency</span>
+                        <span class="font-medium text-gray-700">{{ invoice.currency or 'INR' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PO Panel -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                    <i data-lucide="shopping-cart" class="w-4 h-4 text-emerald-500"></i>
+                    <h3 class="text-[13px] font-semibold text-gray-900 uppercase tracking-wide">Purchase Order</h3>
+                </div>
+                <div id="po-panel" class="p-5 text-sm">
+                    <div class="flex flex-col items-center justify-center gap-2 py-6 text-gray-300">
+                        <div class="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin"></div>
+                        <p class="text-xs">Checking ERP...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Panel -->
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                    <i data-lucide="package" class="w-4 h-4 text-amber-500"></i>
+                    <h3 class="text-[13px] font-semibold text-gray-900 uppercase tracking-wide">Goods Receipt</h3>
+                </div>
+                <div id="receipt-panel" class="p-5 text-sm">
+                    <div class="flex flex-col items-center justify-center gap-2 py-6 text-gray-300">
+                        <div class="w-5 h-5 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin"></div>
+                        <p class="text-xs">Checking ERP...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── AI Reasoning ─────────────────────────────────────────── -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                <i data-lucide="brain" class="w-4 h-4 text-purple-500"></i>
+                <h3 class="text-[13px] font-semibold text-gray-900 uppercase tracking-wide">AI Reasoning</h3>
+                <span id="match-type-badge"
+                    class="ml-auto h-5 px-1.5 rounded text-[9px] font-medium inline-flex items-center"></span>
+            </div>
+            <div class="p-5">
+                <p id="reasoning-text" class="text-sm text-gray-600 leading-relaxed">Loading AI analysis...</p>
+            </div>
+        </div>
+
+        <!-- ── Actions ──────────────────────────────────────────────── -->
+        <div id="action-buttons" class="flex gap-3"></div>
+
+        <!-- ── Audit Trail ──────────────────────────────────────────── -->
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-50 flex items-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4 text-gray-400"></i>
+                <h3 class="text-[13px] font-semibold text-gray-900 uppercase tracking-wide">Audit Trail</h3>
+            </div>
+            <div id="audit-trail" class="p-5 space-y-2 max-h-72 overflow-y-auto custom-scroll">
+                <p class="text-sm text-gray-300">Loading...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        const API_KEY = '{{ api_key }}';
+        const invoiceId = {{ invoice.id }};
+
+        function getHeaders() {
+            return { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' };
+        }
+
+        // ── Status badge styles ────────────────────────────────────
+        function setStatusBadge(status) {
+            const el = document.getElementById('status-badge');
+            const styles = {
+                'APPROVED': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+                'PENDING': 'bg-amber-50 text-amber-700 border border-amber-200',
+                'PENDING_REVIEW': 'bg-blue-50 text-blue-700 border border-blue-200',
+                'PROCESSING': 'bg-purple-50 text-purple-700 border border-purple-200',
+                'REJECTED': 'bg-red-50 text-red-700 border border-red-200',
+                'ESCALATED': 'bg-red-50 text-red-800 border border-red-200',
+                'MANUAL_REVIEW': 'bg-gray-100 text-gray-700 border border-gray-200',
+            };
+            el.className = `h-6 px-2.5 rounded-md text-[10px] font-semibold uppercase tracking-wide inline-flex items-center ${styles[status] || 'bg-gray-50 text-gray-500 border border-gray-200'}`;
+            el.textContent = status.replace('_', ' ');
+        }
+
+        // ── Confidence color ───────────────────────────────────────
+        function setConfidence(score) {
+            const el = document.getElementById('confidence-score');
+            el.textContent = `${score}%`;
+            if (score >= 85) el.className = 'text-3xl font-bold mt-0.5 text-emerald-600';
+            else if (score >= 60) el.className = 'text-3xl font-bold mt-0.5 text-amber-600';
+            else el.className = 'text-3xl font-bold mt-0.5 text-red-500';
+        }
+
+        // ── Load details ───────────────────────────────────────────
+        async function loadDetails() {
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}`, { headers: getHeaders() });
+                const data = await res.json();
+
+                // Vendor name
+                const extracted = data.extracted_data || {};
+                const vendorName = extracted.raw_vendor || extracted.vendorName || extracted.vendor_name || 'Unknown Vendor';
+                document.getElementById('vendor-name').textContent = vendorName;
+
+                // Status
+                setStatusBadge(data.status);
+
+                // Confidence
+                setConfidence(data.confidence_score || 0);
+
+                // AI Reasoning
+                document.getElementById('reasoning-text').textContent =
+                    data.reasoning_note || 'No AI reasoning available for this invoice.';
+
+                // Match type badge
+                const mtBadge = document.getElementById('match-type-badge');
+                const score = data.confidence_score || 0;
+                if (score >= 85) {
+                    mtBadge.textContent = '3-Way Match';
+                    mtBadge.className = 'ml-auto h-5 px-1.5 rounded text-[9px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100 inline-flex items-center';
+                } else if (score >= 60) {
+                    mtBadge.textContent = '2-Way Match';
+                    mtBadge.className = 'ml-auto h-5 px-1.5 rounded text-[9px] font-medium bg-amber-50 text-amber-600 border border-amber-100 inline-flex items-center';
+                } else {
+                    mtBadge.textContent = 'Low Match';
+                    mtBadge.className = 'ml-auto h-5 px-1.5 rounded text-[9px] font-medium bg-red-50 text-red-500 border border-red-100 inline-flex items-center';
+                }
+
+                // PO Panel
+                const poEl = document.getElementById('po-panel');
+                if (data.vendor_id) {
+                    poEl.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="flex justify-between"><span class="text-gray-400">Vendor ID</span><span class="font-medium text-gray-900">${data.vendor_id}</span></div>
+                            <div class="flex items-center gap-2 text-emerald-600"><i data-lucide="check-circle" class="w-4 h-4"></i><span class="font-medium text-sm">PO Match Found</span></div>
+                        </div>`;
+                } else {
+                    poEl.innerHTML = `
+                        <div class="flex flex-col items-center justify-center gap-2 py-4">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-amber-400"></i>
+                            <p class="text-amber-600 text-sm font-medium">No PO matched</p>
+                            <p class="text-gray-400 text-xs">Vendor not yet linked to a purchase order</p>
+                        </div>`;
+                }
+
+                // Receipt Panel
+                const rcptEl = document.getElementById('receipt-panel');
+                if (score >= 95) {
+                    rcptEl.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2 text-emerald-600"><i data-lucide="check-circle" class="w-4 h-4"></i><span class="font-medium text-sm">Receipt Confirmed</span></div>
+                            <p class="text-gray-400 text-xs">Three-way match complete</p>
+                        </div>`;
+                } else {
+                    rcptEl.innerHTML = `
+                        <div class="flex flex-col items-center justify-center gap-2 py-4">
+                            <i data-lucide="clock" class="w-5 h-5 text-gray-300"></i>
+                            <p class="text-gray-500 text-sm font-medium">Awaiting receipt</p>
+                            <p class="text-gray-400 text-xs">Goods receipt not yet confirmed</p>
+                        </div>`;
+                }
+
+                // Actions
+                const actionsEl = document.getElementById('action-buttons');
+                if (data.status === 'PENDING' || data.status === 'PENDING_REVIEW' || data.status === 'MANUAL_REVIEW') {
+                    actionsEl.innerHTML = `
+                        <button onclick="approveInvoice()" class="h-11 px-8 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-colors active:scale-[0.98] flex items-center gap-2">
+                            <i data-lucide="check" class="w-4 h-4"></i> Approve & Learn Alias
+                        </button>
+                        <button onclick="rejectInvoice()" class="h-11 px-6 border border-gray-200 text-sm font-medium rounded-xl hover:bg-gray-50 text-gray-500 transition-colors flex items-center gap-2">
+                            <i data-lucide="x" class="w-4 h-4"></i> Reject
+                        </button>`;
+                } else {
+                    actionsEl.innerHTML = `<p class="text-sm text-gray-400">This invoice has been <strong>${data.status}</strong>.</p>`;
+                }
+
+                // Audit trail
+                const trailEl = document.getElementById('audit-trail');
+                const trail = data.audit_trail || [];
+                if (trail.length === 0) {
+                    trailEl.innerHTML = '<p class="text-sm text-gray-300">No audit entries yet.</p>';
+                } else {
+                    trailEl.innerHTML = trail.map((a, i) => `
+                        <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 text-xs text-gray-500">
+                            <span class="text-[10px] font-mono text-gray-300 mt-0.5">#${(i + 1).toString().padStart(2, '0')}</span>
+                            <span>${a.m || a.note || a.a || 'Processing...'}</span>
+                        </div>`).join('');
+                }
+
+                lucide.createIcons();
+            } catch (err) {
+                console.error('Failed to load invoice details:', err);
+                document.getElementById('reasoning-text').textContent = 'Failed to load invoice details. Check API connection.';
+            }
+        }
+
+        // ── Approve ────────────────────────────────────────────────
+        async function approveInvoice() {
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/approve`, {
+                    method: 'POST', headers: getHeaders()
+                });
+                if (res.ok) {
+                    const d = await res.json();
+                    alert(d.message || 'Invoice approved!');
+                    location.reload();
+                } else {
+                    alert('Approval failed. Check console.');
+                }
+            } catch (err) { console.error('Approve failed:', err); }
+        }
+
+        // ── Reject ─────────────────────────────────────────────────
+        async function rejectInvoice() {
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/reject`, {
+                    method: 'POST', headers: getHeaders()
+                });
+                if (res.ok) {
+                    alert('Invoice rejected.');
+                    location.reload();
+                }
+            } catch (err) { console.error('Reject failed:', err); }
+        }
+
+        // ── Init ───────────────────────────────────────────────────
+        loadDetails();
+    </script>
+</body>
+
+</html>

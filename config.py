@@ -18,6 +18,10 @@ _DEFAULT_DB_URL = f"sqlite:///{_DB_PATH}"
 # Use Railway's PORT env var if set, else default 8888 for local dev
 _DEFAULT_PORT = int(os.environ.get("PORT", 8888))
 
+# Auto-detect Railway public URL for email approval links
+_RAILWAY_DOMAIN = os.environ.get("RAILWAY_PUBLIC_DOMAIN")  # e.g. "myapp.up.railway.app"
+_DEFAULT_BASE_URL = f"https://{_RAILWAY_DOMAIN}" if _RAILWAY_DOMAIN else f"http://localhost:{_DEFAULT_PORT}"
+
 
 class Settings(BaseSettings):
     """
@@ -30,7 +34,7 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════
     PORT: int = Field(default=_DEFAULT_PORT, description="Server port")
     API_KEY: Optional[str] = Field(default=None, description="API authentication key")
-    BASE_URL: str = Field(default="http://localhost:8888", description="Base URL for links")
+    BASE_URL: str = Field(default=_DEFAULT_BASE_URL, description="Base URL for links (auto-detected on Railway)")
     
     # ═══════════════════════════════════════════
     # AI MODELS (v2.0)

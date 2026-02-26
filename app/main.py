@@ -20,6 +20,14 @@ import threading
 import datetime
 import logging
 
+# ── Production Logging ────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("ProcureIQ")
+
 
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -152,6 +160,22 @@ async def auth_redirect_wrapper(request: Request, exc: HTTPException):
 
 
 # --- Routes ---
+
+# Public Health Check (Railway monitoring)
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Railway / load balancers."""
+    from .agent.worker import get_worker_state
+    worker = get_worker_state()
+    ai_provider = "openrouter" if os.environ.get("OPENROUTER_API_KEY") else (
+        "gemini" if os.environ.get("GEMINI_API_KEY") else "rule_based"
+    )
+    return {
+        "status": "ok",
+        "ai_provider": ai_provider,
+        "worker_status": worker.get("status", "unknown"),
+        "base_url": settings.BASE_URL,
+    }
 
 # Public Routes
 @app.get("/login")

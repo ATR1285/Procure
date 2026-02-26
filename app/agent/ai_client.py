@@ -59,7 +59,6 @@ class AIClient:
         self.gemini_model = None
         self.gemini_client = None
         if self.gemini_key:
-        if self.gemini_key:
             if _GENAI_NEW:
                 self.gemini_client = genai.Client(api_key=self.gemini_key)
             else:
@@ -72,6 +71,14 @@ class AIClient:
         if self.openai_key:
             self.openai_client = AsyncOpenAI(api_key=self.openai_key)
             logger.info("GPT-4o (Direct) initialized.")
+
+        # Log warnings for missing keys
+        if not self.openrouter_key:
+            logger.warning("OPENROUTER_API_KEY not set — primary AI provider unavailable")
+        if not self.gemini_key:
+            logger.warning("GEMINI_API_KEY not set — Gemini Direct unavailable")
+        if not self.openai_key:
+            logger.info("OPENAI_API_KEY not set — GPT-4o fallback unavailable")
 
         self.primary_model = "google/gemini-2.0-flash-exp:free"   # valid OpenRouter model
         self.fallback_model = "mistralai/mistral-small-3.1-24b-instruct:free"
@@ -143,12 +150,15 @@ class AIClient:
         return await self.complete(full_prompt, system=system)
 
     async def _retry_call(self, func, *args):
-        """Standardized retry logic: 2 retries with exponential backoff (1s, 2s)."""
+        """Standardized retry logic with 30s timeout and exponential backoff."""
         for attempt in range(3):
             try:
-                return await func(*args)
+                return await asyncio.wait_for(func(*args), timeout=30.0)
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout (30s) for {func.__name__} on attempt {attempt+1}")
+                if attempt == 2:
+                    return None
             except Exception as e:
-                # If it's the final attempt, verify if we should raise or just return None to trigger next fallback
                 if attempt == 2:
                     logger.error(f"Final attempt failed for {func.__name__}: {e}")
                     return None 
