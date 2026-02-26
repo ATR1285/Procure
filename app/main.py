@@ -185,6 +185,11 @@ def login_page(request: Request):
 
 app.include_router(auth.router)
 
+@app.get("/health")
+def health_check():
+    """Service health check for Railway/monitoring."""
+    return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
+
 # Protected Dashboard Routes
 @app.get("/", dependencies=[Depends(verify_google_auth)])
 def read_root(request: Request):

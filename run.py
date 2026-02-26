@@ -23,4 +23,6 @@ if __name__ == "__main__":
     print(f">> API Authentication: {'Enabled' if settings.API_KEY else 'Auto-generating key...'}\n")
     
     # Run FastAPI app with configurable port
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+    # Disable reload in production (when PORT is provided by environment)
+    is_prod = os.environ.get("PORT") is not None
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=not is_prod)

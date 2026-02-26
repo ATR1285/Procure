@@ -47,6 +47,10 @@ websockets>=13.0
 pymysql>=1.1.0
 cryptography>=42.0.0
 
-# Monitoring
+# Monitoring & Rate Limiting
 sentry-sdk[fastapi]>=1.40.0
 slowapi>=0.1.9
+
+# Development
+black==24.2.0
+flake8==7.0.0

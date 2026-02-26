@@ -57,6 +57,8 @@ node_modules/
 data/
 logs/
 *.log
+app.log
+agent_status.json
 
 # Testing
 .pytest_cache/
