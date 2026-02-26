@@ -75,13 +75,21 @@ async def lifespan(app):
     # Print configuration summary
     settings.print_startup_summary()
     
-    # 1. Start Gmail Invoice Agent (Async)
-    asyncio.create_task(
-        gmail_invoice_agent(get_db, poll_interval=settings.GMAIL_POLL_INTERVAL)
-    )
+    # 1. Start Gmail Invoice Agent (Async) — non-fatal
+    try:
+        asyncio.create_task(
+            gmail_invoice_agent(get_db, poll_interval=settings.GMAIL_POLL_INTERVAL)
+        )
+        print("[STARTUP] Gmail agent started")
+    except Exception as e:
+        print(f"[STARTUP] Gmail agent failed (non-fatal): {e}")
     
-    # 2. Start Inventory Agent (Threaded)
-    threading.Thread(target=start_agent_loop, daemon=True).start()
+    # 2. Start Inventory Agent (Threaded) — non-fatal
+    try:
+        threading.Thread(target=start_agent_loop, daemon=True).start()
+        print("[STARTUP] Inventory agent started")
+    except Exception as e:
+        print(f"[STARTUP] Inventory agent failed (non-fatal): {e}")
     
     yield
 
