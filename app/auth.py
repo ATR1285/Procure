@@ -33,6 +33,13 @@ def _get_oauth_config():
     client_secret = get_credential("GOOGLE_CLIENT_SECRET") or settings.GOOGLE_CLIENT_SECRET
     return client_id, client_secret
 
+def _get_base_url() -> str:
+    """Return correct HTTPS base URL for OAuth. Uses Railway's auto-provided domain variable."""
+    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+    if railway_domain:
+        return f"https://{railway_domain.rstrip('/')}"
+    return settings.BASE_URL.rstrip("/")
+
 def _build_flow(client_id, client_secret, redirect_uri, state=None):
     kwargs = {}
     if state:
@@ -58,7 +65,7 @@ async def login(request: Request):
     if not client_id or not client_secret:
         return RedirectResponse("/login?error=google_not_configured")
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _get_base_url()  # Uses RAILWAY_PUBLIC_DOMAIN for guaranteed HTTPS
     redirect_uri = f"{base_url}{REDIRECT_URI_PATH}"
 
     flow = _build_flow(client_id, client_secret, redirect_uri)
