@@ -37,6 +37,16 @@
             border-color: #6366f1;
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
+
+        .tab-active {
+            color: white;
+            border-bottom: 2px solid #6366f1;
+        }
+
+        .tab-inactive {
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+        }
     </style>
 </head>
 
@@ -44,84 +54,111 @@
     <div class="glass rounded-2xl p-8 w-full max-w-md shadow-2xl">
 
         <!-- Logo -->
-        <div class="flex justify-center mb-6">
+        <div class="flex justify-center mb-5">
             <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-3.5 rounded-2xl shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
                     stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
             </div>
         </div>
-
         <h1 class="text-2xl font-bold text-white text-center mb-1">Procure-IQ</h1>
-        <p class="text-gray-400 text-center text-sm mb-8">Autonomous Procurement Controller</p>
+        <p class="text-gray-400 text-center text-xs mb-6">Autonomous Procurement Controller</p>
 
-        {% if setup_mode %}
-        <!-- First-time Setup Form -->
-        <div
-            class="mb-4 px-3 py-2 bg-indigo-900/40 border border-indigo-500/30 rounded-lg text-indigo-300 text-xs text-center">
-            🛠️ First-time setup — create your admin account
+        <!-- Tabs -->
+        <div id="tabs" class="flex border-b border-white/10 mb-6">
+            <button onclick="showTab('login')" id="tab-login"
+                class="tab-active flex-1 py-2.5 text-sm font-semibold transition-all">
+                Sign In
+            </button>
+            <button onclick="showTab('register')" id="tab-register"
+                class="tab-inactive flex-1 py-2.5 text-sm font-semibold transition-all">
+                Register
+            </button>
         </div>
-        <form method="POST" action="/auth/setup" class="space-y-4">
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Your Name</label>
-                <input type="text" name="name" placeholder="Admin" required
-                    class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
-            </div>
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Email</label>
-                <input type="email" name="email" placeholder="admin@example.com" required
-                    class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
-            </div>
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Password (min. 6 characters)</label>
-                <input type="password" name="password" placeholder="••••••••" required minlength="6"
-                    class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
-            </div>
-            <button type="submit" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-xl text-sm">
-                Create Admin Account →
-            </button>
-        </form>
 
-        {% else %}
         <!-- Login Form -->
-        <form method="POST" action="/auth/password-login" class="space-y-4">
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Email</label>
-                <input type="email" name="email" placeholder="you@example.com" required
-                    class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
-            </div>
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Password</label>
-                <input type="password" name="password" placeholder="••••••••" required
-                    class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
-            </div>
-            <button type="submit" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-xl text-sm">
-                Sign In →
-            </button>
-        </form>
-        {% endif %}
+        <div id="form-login">
+            <form method="POST" action="/auth/password-login" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5">Email</label>
+                    <input type="email" name="email" placeholder="you@example.com" required
+                        class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5">Password</label>
+                    <input type="password" name="password" placeholder="••••••••" required
+                        class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
+                </div>
+                <button type="submit" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-xl text-sm">
+                    Sign In →
+                </button>
+            </form>
+            <p class="text-center text-xs text-gray-500 mt-4">
+                No account? <button onclick="showTab('register')"
+                    class="text-indigo-400 hover:text-indigo-300 font-medium">Register here</button>
+            </p>
+        </div>
+
+        <!-- Register Form -->
+        <div id="form-register" class="hidden">
+            <form method="POST" action="/auth/register" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5">Full Name</label>
+                    <input type="text" name="name" placeholder="Your Name" required
+                        class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5">Email</label>
+                    <input type="email" name="email" placeholder="you@example.com" required
+                        class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5">Password <span class="text-gray-600">(min. 6
+                            characters)</span></label>
+                    <input type="password" name="password" placeholder="••••••••" required minlength="6"
+                        class="w-full bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm transition-all">
+                </div>
+                <button type="submit" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-xl text-sm">
+                    Create Account →
+                </button>
+            </form>
+            <p class="text-center text-xs text-gray-500 mt-4">
+                Already have one? <button onclick="showTab('login')"
+                    class="text-indigo-400 hover:text-indigo-300 font-medium">Sign in</button>
+            </p>
+        </div>
 
         {% if error %}
         <div class="mt-4 p-3 bg-red-900/40 border border-red-500/30 text-red-300 text-sm rounded-xl text-center">
-            {% if error == "invalid_credentials" %}
-            ❌ Wrong email or password. Please try again.
-            {% elif error == "account_disabled" %}
-            🚫 Your account has been disabled.
-            {% elif error == "missing_fields" %}
-            ⚠️ Please enter both email and password.
-            {% elif error == "setup_locked" %}
-            🔒 Setup already complete. Please log in.
-            {% else %}
-            ⚠️ {{ error }}
-            {% endif %}
+            {% if error == "invalid_credentials" %}❌ Wrong email or password.
+            {% elif error == "account_disabled" %}🚫 Account disabled.
+            {% elif error == "missing_fields" or error == "invalid_input" %}⚠️ Please fill all fields (min. 6-char
+            password).
+            {% elif error == "email_taken" %}📧 That email is already registered. Sign in instead.
+            {% else %}⚠️ {{ error }}{% endif %}
         </div>
         {% endif %}
 
-        <p class="mt-8 text-xs text-gray-600 text-center">
-            Authorized Personnel Only · Procure-IQ v2.0
-        </p>
+        <p class="mt-6 text-xs text-gray-600 text-center">Procure-IQ v2.0 · Authorized Personnel Only</p>
     </div>
+
+    <script>
+        // Auto-switch to register tab if ?tab=register in URL
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('tab') === 'register') showTab('register');
+
+        function showTab(tab) {
+            document.getElementById('form-login').classList.toggle('hidden', tab !== 'login');
+            document.getElementById('form-register').classList.toggle('hidden', tab !== 'register');
+            document.getElementById('tab-login').className = tab === 'login'
+                ? 'tab-active flex-1 py-2.5 text-sm font-semibold transition-all'
+                : 'tab-inactive flex-1 py-2.5 text-sm font-semibold transition-all';
+            document.getElementById('tab-register').className = tab === 'register'
+                ? 'tab-active flex-1 py-2.5 text-sm font-semibold transition-all'
+                : 'tab-inactive flex-1 py-2.5 text-sm font-semibold transition-all';
+        }
+    </script>
 </body>
 
 </html>

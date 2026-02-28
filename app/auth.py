@@ -120,3 +120,39 @@ async def create_admin(request: Request, db: Session = Depends(get_db)):
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login")
+
+
+# ─── Open Registration ────────────────────────────────────
+
+@router.post("/auth/register")
+async def register(request: Request, db: Session = Depends(get_db)):
+    """Allow any user to self-register an account."""
+    form     = await request.form()
+    email    = str(form.get("email", "")).strip().lower()
+    name     = str(form.get("name", "")).strip()
+    password = str(form.get("password", ""))
+
+    if not email or not name or not password or len(password) < 6:
+        return RedirectResponse("/login?tab=register&error=invalid_input", status_code=303)
+
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing:
+        return RedirectResponse("/login?tab=register&error=email_taken", status_code=303)
+
+    user = models.User(
+        email=email,
+        name=name,
+        password_hash=_hash_password(password),
+        is_active=True,
+        is_admin=False,
+    )
+    db.add(user)
+    db.commit()
+
+    request.session["user"] = {
+        "email":    user.email,
+        "name":     user.name,
+        "picture":  None,
+        "is_admin": False,
+    }
+    return RedirectResponse("/", status_code=303)
