@@ -12,6 +12,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     name = Column(String)
     picture = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)   # For username/password login
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     last_login = Column(DateTime, default=datetime.datetime.utcnow)
