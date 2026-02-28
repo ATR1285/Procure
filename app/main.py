@@ -75,40 +75,35 @@ async def lifespan(app):
     # Print configuration summary
     settings.print_startup_summary()
 
-    # 0. Auto-seed admin user from env vars (ADMIN_EMAIL + ADMIN_PASSWORD)
+    # 0. Auto-seed admin user — default: admin@procureiq.com / admin123
+    #    Override with ADMIN_EMAIL + ADMIN_PASSWORD env vars in Railway.
     try:
         import hashlib as _hl
-        admin_email    = os.environ.get("ADMIN_EMAIL", "")
-        admin_password = os.environ.get("ADMIN_PASSWORD", "")
-        if admin_email and admin_password:
-            db = SessionLocal()
-            try:
-                existing = db.query(models.User).filter(models.User.email == admin_email.lower()).first()
-                if not existing:
-                    salt   = os.urandom(16).hex()
-                    hashed = _hl.sha256((salt + admin_password).encode()).hexdigest()
-                    pw_hash = f"{salt}:{hashed}"
-                    admin  = models.User(
-                        email=admin_email.lower(),
-                        name="Admin",
-                        password_hash=pw_hash,
-                        is_active=True,
-                        is_admin=True,
-                    )
-                    db.add(admin)
-                    db.commit()
-                    print(f"[STARTUP] Admin user created: {admin_email}")
-                elif not existing.password_hash:
-                    # Update existing Google-auth user to have a password
-                    salt   = os.urandom(16).hex()
-                    hashed = _hl.sha256((salt + admin_password).encode()).hexdigest()
-                    existing.password_hash = f"{salt}:{hashed}"
-                    db.commit()
-                    print(f"[STARTUP] Admin password set for existing user: {admin_email}")
-                else:
-                    print(f"[STARTUP] Admin user already exists: {admin_email}")
-            finally:
-                db.close()
+        admin_email    = os.environ.get("ADMIN_EMAIL", "admin@procureiq.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+        db = SessionLocal()
+        try:
+            existing = db.query(models.User).filter(models.User.email == admin_email.lower()).first()
+            if not existing:
+                salt    = os.urandom(16).hex()
+                hashed  = _hl.sha256((salt + admin_password).encode()).hexdigest()
+                db.add(models.User(
+                    email=admin_email.lower(), name="Admin",
+                    password_hash=f"{salt}:{hashed}",
+                    is_active=True, is_admin=True,
+                ))
+                db.commit()
+                print(f"[STARTUP] Admin user created: {admin_email}")
+            elif not existing.password_hash:
+                salt   = os.urandom(16).hex()
+                hashed = _hl.sha256((salt + admin_password).encode()).hexdigest()
+                existing.password_hash = f"{salt}:{hashed}"
+                db.commit()
+                print(f"[STARTUP] Admin password set for: {admin_email}")
+            else:
+                print(f"[STARTUP] Admin already exists: {admin_email}")
+        finally:
+            db.close()
     except Exception as e:
         print(f"[STARTUP] Admin seed failed (non-fatal): {e}")
 
