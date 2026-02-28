@@ -197,3 +197,22 @@ async def logout(request: Request):
     request.session.clear()
     url = f"/login?error={error}" if error else "/login"
     return RedirectResponse(url)
+
+
+# ─── Debug (Temporary) ────────────────────────────────────
+
+@router.get("/auth/debug")
+async def auth_debug(request: Request):
+    """Temporary debug endpoint to see what redirect URI is being built."""
+    import os
+    from config import settings
+    railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "NOT_SET")
+    base_url = _get_base_url()
+    redirect_uri = f"{base_url}{REDIRECT_URI_PATH}"
+    return {
+        "RAILWAY_PUBLIC_DOMAIN": railway_domain,
+        "BASE_URL_setting": settings.BASE_URL,
+        "computed_base_url": base_url,
+        "redirect_uri_will_send": redirect_uri,
+        "request_base_url": str(request.base_url),
+    }
